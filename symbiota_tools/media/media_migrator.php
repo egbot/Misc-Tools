@@ -4,30 +4,23 @@
  */
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
-include_once('../config/symbini.php');
 
 $collid = (array_key_exists('collid', $_POST) ? filter_var($_POST['collid'], FILTER_SANITIZE_NUMBER_INT) : '');
 $imgIdStart = (array_key_exists('imgidstart', $_POST) ? filter_var($_POST['imgidstart'], FILTER_SANITIZE_NUMBER_INT) : 0);
 $limit = (array_key_exists('limit', $_POST) ? filter_var($_POST['limit'], FILTER_SANITIZE_NUMBER_INT) : 10000);
 
-$transferThumbnail = (array_key_exists('transferThumbnail', $_POST) ? $_POST['transferThumbnail'] : 0);
-$transferWeb = (array_key_exists('transferWeb', $_POST)?$_POST['transferWeb']:0);
-$transferLarge = (array_key_exists('transferLarge', $_POST)?$_POST['transferLarge']:0);
-$matchTermThumbnail = (array_key_exists('matchTermThumbnail', $_POST)?$_POST['matchTermThumbnail']:'');
-$matchTermWeb = (array_key_exists('matchTermWeb', $_POST)?$_POST['matchTermWeb']:'');
-$matchTermLarge = (array_key_exists('matchTermLarge', $_POST)?$_POST['matchTermLarge']:'');
-$deleteSource = (array_key_exists('deleteSource', $_POST)?$_POST['deleteSource']:0);
-$imgRootUrl = (array_key_exists('imgRootUrl', $_POST)?$_POST['imgRootUrl']:'');
-$imgRootPath = (array_key_exists('imgRootPath', $_POST)?$_POST['imgRootPath']:'');
-$imgSubPath = (array_key_exists('imgSubPath', $_POST)?$_POST['imgSubPath']:'');
-$copyover = (!empty($_POST['copyover']) ? 1 : 0);
+$transferThumbnail = empty($_POST['transferThumbnail']) ? 0 : 1;
+$transferWeb = empty($_POST['transferWeb']) ? 0 : 1;
+$transferLarge = empty($_POST['transferLarge']) ? 0 : 1;
+$matchTermThumbnail = (array_key_exists('matchTermThumbnail', $_POST) ? $_POST['matchTermThumbnail'] : '');
+$matchTermWeb = (array_key_exists('matchTermWeb', $_POST) ? $_POST['matchTermWeb'] : '');
+$matchTermLarge = (array_key_exists('matchTermLarge', $_POST) ? $_POST['matchTermLarge'] : '');
+$deleteSource = empty($_POST['deleteSource']) ? 0 : 1;
+$imgRootUrl = (array_key_exists('imgRootUrl', $_POST) ? $_POST['imgRootUrl'] : '');
+$imgRootPath = (array_key_exists('imgRootPath', $_POST) ? $_POST['imgRootPath'] : '');
+$imgSubPath = (array_key_exists('imgSubPath', $_POST) ? $_POST['imgSubPath'] : '');
+$copyover = empty($_POST['copyover']) ? 0 : 1;
 $submit = (array_key_exists('submitbutton', $_POST)?$_POST['submitbutton']:'');
-
-//Sanitation
-if(!is_numeric($transferThumbnail)) $transferThumbnail = 0;
-if(!is_numeric($transferWeb)) $transferWeb = 0;
-if(!is_numeric($transferLarge)) $transferLarge = 0;
-if(!is_numeric($deleteSource)) $deleteSource = 0;
 
 $toolManager = new MediaResolutionTools();
 $toolManager->setCollid($collid);
@@ -36,15 +29,15 @@ $isEditor = false;
 if($IS_ADMIN) $isEditor = true;
 ?>
 <!DOCTYPE html>
-<html lang="<?php echo $LANG_TAG ?>">
+<html lang="<?= $LANG_TAG ?>">
 <head>
 	<title>Media Tools</title>
-	<meta http-equiv="Content-Type" content="text/html; charset=<?php echo $CHARSET; ?>"/>
+	<meta http-equiv="Content-Type" content="text/html; charset=<?= $CHARSET; ?>"/>
 	<?php
 	include_once($SERVER_ROOT.'/includes/head.php');
 	?>
-	<script src="<?php echo $CLIENT_ROOT; ?>/js/jquery-3.7.1.min.js" type="text/javascript"></script>
-	<script src="<?php echo $CLIENT_ROOT; ?>/js/jquery-ui.min.js" type="text/javascript"></script>
+	<script src="<?= $CLIENT_ROOT; ?>/js/jquery-3.7.1.min.js" type="text/javascript"></script>
+	<script src="<?= $CLIENT_ROOT; ?>/js/jquery-ui.min.js" type="text/javascript"></script>
 	<script type="text/javascript">
 		function verifyMigrationCode(f){
 			if(f.matchTermThumbnail.value == "" && f.matchTermWeb.value == "" && f.matchTermLarge.value == ""){
@@ -76,32 +69,29 @@ if($IS_ADMIN) $isEditor = true;
 			<div id="actionDiv">
 				<?php
 				$imgidEnd = 0;
-				if($submit){
-					if($submit == 'transferImages'){
-						?>
-						<fieldset>
-							<legend>Action Panel</legend>
-							<ol>
-							<?php
-							$toolManager->setVerboseMode(2);
-							$toolManager->setTransferThumbnail($transferThumbnail);
-							$toolManager->setTransferWeb($transferWeb);
-							$toolManager->setTransferLarge($transferLarge);
-							$toolManager->setMatchTermThumbnail($matchTermThumbnail);
-							$toolManager->setMatchTermWeb($matchTermWeb);
-							$toolManager->setMatchTermLarge($matchTermLarge);
-							$toolManager->setDeleteSource($deleteSource);
-							$toolManager->setImgRootUrl($imgRootUrl);
-							$toolManager->setImgRootPath($imgRootPath);
-							$toolManager->setImgSubPath($imgSubPath);
-							$toolManager->setCopyOverExistingImages($copyover);
-							if($collid) $imgIdStart = $toolManager->migrateCollectionDerivatives($imgIdStart, $limit);
-							else $imgIdStart = $toolManager->migrateFieldDerivatives($imgIdStart, $limit);
-							?>
-							</ol>
-						</fieldset>
+				if($submit == 'transferImages'){
+					?>
+					<fieldset>
+						<legend>Action Panel</legend>
+						<ol>
 						<?php
-					}
+						$toolManager->setTransferThumbnail($transferThumbnail);
+						$toolManager->setTransferWeb($transferWeb);
+						$toolManager->setTransferLarge($transferLarge);
+						$toolManager->setMatchTermThumbnail($matchTermThumbnail);
+						$toolManager->setMatchTermWeb($matchTermWeb);
+						$toolManager->setMatchTermLarge($matchTermLarge);
+						$toolManager->setDeleteSource($deleteSource);
+						$toolManager->setImgRootUrl($imgRootUrl);
+						$toolManager->setImgRootPath($imgRootPath);
+						$toolManager->setImgSubPath($imgSubPath);
+						$toolManager->setCopyOverExistingImages($copyover);
+						if($collid) $imgIdStart = $toolManager->migrateCollectionDerivatives($imgIdStart, $limit);
+						else $imgIdStart = $toolManager->migrateFieldDerivatives($imgIdStart, $limit);
+						?>
+						</ol>
+					</fieldset>
+					<?php
 				}
 				?>
 			</div>
@@ -130,25 +120,25 @@ if($IS_ADMIN) $isEditor = true;
 							<legend>Transfer Target</legend>
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
-									<input name="transferThumbnail" type="checkbox" value="1" <?php echo ($transferThumbnail?'CHECKED':''); ?> />
+									<input name="transferThumbnail" type="checkbox" value="1" <?= ($transferThumbnail?'CHECKED':''); ?> />
 									<span class="fieldLabel">Transfer Thumbnail</span>
 								</div>
 							</div>
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
-									<input name="transferWeb" type="checkbox" value="1" <?php echo ($transferWeb?'CHECKED':''); ?> />
+									<input name="transferWeb" type="checkbox" value="1" <?= ($transferWeb ? 'CHECKED' : '') ?> />
 									<span class="fieldLabel">Transfer Web View (medium)</span>
 								</div>
 							</div>
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
-									<input name="transferLarge" type="checkbox" value="1" <?php echo ($transferLarge?'CHECKED':''); ?> />
+									<input name="transferLarge" type="checkbox" value="1" <?= ($transferLarge ? 'CHECKED' : '') ?> />
 									<span class="fieldLabel">Transfer Large Image</span>
 								</div>
 							</div>
 							<div class="fieldRowDiv" style="padding-top:10px">
 								<div class="fieldDiv">
-									<input name="deleteSource" type="checkbox" value="1" <?php echo ($deleteSource?'CHECKED':''); ?> />
+									<input name="deleteSource" type="checkbox" value="1" <?= ($deleteSource ? 'CHECKED' : '') ?> />
 									<span class="fieldLabel">Delete source images</span>
 								</div>
 							</div>
@@ -160,19 +150,19 @@ if($IS_ADMIN) $isEditor = true;
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
 									<span class="fieldLabel">Thumbnail Matching Term (thumbnailUrl):</span>
-									<input name="matchTermThumbnail" type="text" value="<?php echo htmlspecialchars($matchTermThumbnail); ?>" style="width:300px" />
+									<input name="matchTermThumbnail" type="text" value="<?= htmlspecialchars($matchTermThumbnail); ?>" style="width:300px" />
 								</div>
 							</div>
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
 									<span class="fieldLabel">Web Image (medium) Matching Term (url):</span>
-									<input name="matchTermWeb" type="text" value="<?php echo htmlspecialchars($matchTermWeb); ?>" style="width:300px" />
+									<input name="matchTermWeb" type="text" value="<?= htmlspecialchars($matchTermWeb); ?>" style="width:300px" />
 								</div>
 							</div>
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
 									<span class="fieldLabel">Large Image Matching Term (originalurl):</span>
-									<input name="matchTermLarge" type="text" value="<?php echo htmlspecialchars($matchTermLarge); ?>" style="width:300px" />
+									<input name="matchTermLarge" type="text" value="<?= htmlspecialchars($matchTermLarge); ?>" style="width:300px" />
 								</div>
 							</div>
 						</fieldset>
@@ -183,13 +173,13 @@ if($IS_ADMIN) $isEditor = true;
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
 									<span class="fieldLabel">Image Root URL (imgRootUrl):</span>
-									<input name="imgRootUrl" type="text" value="<?php echo ($imgRootUrl ? htmlspecialchars($imgRootUrl) : $MEDIA_ROOT_URL); ?>" style="width:400px" />
+									<input name="imgRootUrl" type="text" value="<?= ($imgRootUrl ? htmlspecialchars($imgRootUrl) : $MEDIA_ROOT_URL); ?>" style="width:400px" />
 								</div>
 							</div>
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
 									<span class="fieldLabel">Image Root Path (imgRootPath):</span>
-									<input name="imgRootPath" type="text" value="<?php echo ($imgRootPath ? htmlspecialchars($imgRootPath) : $MEDIA_ROOT_PATH); ?>" style="width:400px" />
+									<input name="imgRootPath" type="text" value="<?= ($imgRootPath ? htmlspecialchars($imgRootPath) : $MEDIA_ROOT_PATH); ?>" style="width:400px" />
 								</div>
 							</div>
 							<div class="fieldRowDiv">
@@ -209,13 +199,13 @@ if($IS_ADMIN) $isEditor = true;
 					<div class="fieldRowDiv">
 						<div class="fieldDiv">
 							<span class="fieldLabel">imgId start:</span>
-							<input type="text" name="imgidstart" value="<?php echo $imgIdStart; ?>" />
+							<input type="text" name="imgidstart" value="<?= $imgIdStart; ?>" />
 						</div>
 					</div>
 					<div class="fieldRowDiv">
 						<div class="fieldDiv">
 							<span class="fieldLabel">Batch limit:</span>
-							<input type="text" name="limit" value="<?php echo $limit; ?>" />
+							<input type="text" name="limit" value="<?= $limit; ?>" />
 						</div>
 					</div>
 					<div class="fieldRowDiv">
@@ -236,6 +226,7 @@ class MediaMigration {
 	private $conn;
 	private $collid;
 	private $collMetaArr;
+
 	private $transferThumbnail = false;
 	private $transferWeb = false;
 	private $transferLarge = false;
@@ -249,10 +240,11 @@ class MediaMigration {
 	private $sourcePathPrefix;
 	private $copyOverExistingImages = false;
 
+	private $logFH;
+	private $verboseMode = 0;
 	private $debugMode = false;
 
 	function __construct() {
-		$this->conn = MySQLiConnectionFactory::getCon('write');
 	}
 
 	function __destruct(){
@@ -261,6 +253,24 @@ class MediaMigration {
 			fwrite($this->logFH,"\n\n");
 			fclose($this->logFH);
 		}
+	}
+
+	private function setConn() {
+		include_once('dbconnection.php');
+		if(!empty($SERVER_ARR['password'])){
+			try{
+				$this->conn = new mysqli($SERVER_ARR['host'], $SERVER_ARR['username'], $SERVER_ARR['password'], $SERVER_ARR['database'], $SERVER_ARR['port']);
+				if(isset($SERVER_ARR['charset']) && $SERVER_ARR['charset']) {
+					if(!$this->conn->set_charset($SERVER_ARR['charset'])){
+						throw new Exception('Error loading character set ' . $SERVER_ARR['charset'] . ': ' . $this->conn->error);
+					}
+				}
+			}
+			catch(Exception $e){
+				echo $e->getMessage();
+			}
+		}
+		echo 'ERROR: set your DB connection variables';
 	}
 
 	public function migrateFieldDerivatives($imgIdStart, $limit){
@@ -481,6 +491,7 @@ class MediaMigration {
 		return $imgIdStart;
 	}
 
+	//Support functions
 	private function getLocalPath($imageUrl){
 		if($this->sourcePathPrefix){
 			$adjustedUrl = str_replace($this->sourcePathPrefix, $GLOBALS['MEDIA_ROOT_PATH'], $imageUrl);
@@ -527,6 +538,10 @@ class MediaMigration {
 			}
 			if(!file_exists($this->imgRootPath)) mkdir($this->imgRootPath);
 		}
+	}
+
+	private function setLogFH($logPath){
+		$this->logFH = fopen($logPath, 'a');
 	}
 
 	//Misc data return functions
