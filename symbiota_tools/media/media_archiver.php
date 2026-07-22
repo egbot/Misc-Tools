@@ -149,6 +149,8 @@ if($IS_ADMIN) $isEditor = true;
 	?>
 </body>
 <?php
+include_once('../config/dbconnection.php');
+
 class MediaArchiver {
 
 	private $conn;
