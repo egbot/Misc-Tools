@@ -23,15 +23,12 @@ $isEditor = false;
 if($IS_ADMIN) $isEditor = true;
 ?>
 <!DOCTYPE html>
-<html lang="<?php echo $LANG_TAG ?>">
+<html lang="<?= $LANG_TAG ?>">
 <head>
 	<title>Media Tools</title>
-	<meta http-equiv="Content-Type" content="text/html; charset=<?php echo $CHARSET; ?>"/>
-	<?php
-	include_once($SERVER_ROOT.'/includes/head.php');
-	?>
-	<script src="<?php echo $CLIENT_ROOT; ?>/js/jquery-3.7.1.min.js" type="text/javascript"></script>
-	<script src="<?php echo $CLIENT_ROOT; ?>/js/jquery-ui.min.js" type="text/javascript"></script>
+	<meta http-equiv="Content-Type" content="text/html; charset=<?= $CHARSET; ?>"/>
+	<script src="<?= $CLIENT_ROOT; ?>/js/jquery-3.7.1.min.js" type="text/javascript"></script>
+	<script src="<?= $CLIENT_ROOT; ?>/js/jquery-ui.min.js" type="text/javascript"></script>
 	<script type="text/javascript">
 		function verifyMigrationCode(f){
 			if(f.matchTermThumbnail.value == "" && f.matchTermWeb.value == "" && f.matchTermLarge.value == ""){
@@ -102,20 +99,20 @@ if($IS_ADMIN) $isEditor = true;
 					</div>
 					<div class="fieldRowDiv">
 						<div class="fieldDiv">
-							<b>Starting Image ID:</b> <input type="text" name="imgidstart" value="<?php echo $imgidEnd; ?>" /><br />
+							<b>Starting Image ID:</b> <input type="text" name="imgidstart" value="<?= $imgidEnd; ?>" /><br />
 						</div>
 					</div>
 					<div class="fieldRowDiv">
 						<div class="fieldDiv">
-							<b>Batch limit: </b><input type="text" name="limit" value="<?php echo $limit; ?>" /><br />
+							<b>Batch limit: </b><input type="text" name="limit" value="<?= $limit; ?>" /><br />
 						</div>
 					</div>
 					<div class="fieldRowDiv">
 						<div class="fieldDiv">
 							<fieldset>
 								<legend>Action</legend>
-								<input type="radio" name="archiveimg" value="0" <?php echo ($archiveImages?'':'CHECKED'); ?> /> Delete Images<br />
-								<input type="radio" name="archiveimg" value="1" <?php echo ($archiveImages?'CHECKED':''); ?> /> Archive Images<br />
+								<input type="radio" name="archiveimg" value="0" <?= ($archiveImages?'':'CHECKED'); ?> /> Delete Images<br />
+								<input type="radio" name="archiveimg" value="1" <?= ($archiveImages?'CHECKED':''); ?> /> Archive Images<br />
 							</fieldset>
 						</div>
 					</div>
@@ -123,9 +120,9 @@ if($IS_ADMIN) $isEditor = true;
 						<div class="fieldDiv">
 							<fieldset>
 								<legend>Image Targets</legend>
-								<input type="checkbox" name="delthumb" value="1" <?php echo ($delThumb?'CHECKED':''); ?> /> Delete Thumbnail Derivative<br />
-								<input type="checkbox" name="delweb" value="1" <?php echo ($delWeb?'CHECKED':''); ?> /> Delete Web Derivative<br />
-								<input type="checkbox" name="dellarge" value="1" <?php echo ($delLarge?'CHECKED':''); ?> /> Delete Large Derivative<br />
+								<input type="checkbox" name="delthumb" value="1" <?= ($delThumb?'CHECKED':''); ?> /> Delete Thumbnail Derivative<br />
+								<input type="checkbox" name="delweb" value="1" <?= ($delWeb?'CHECKED':''); ?> /> Delete Web Derivative<br />
+								<input type="checkbox" name="dellarge" value="1" <?= ($delLarge?'CHECKED':''); ?> /> Delete Large Derivative<br />
 							</fieldset>
 						</div>
 					</div>

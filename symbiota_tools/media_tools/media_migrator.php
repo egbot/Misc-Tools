@@ -34,11 +34,6 @@ if($IS_ADMIN) $isEditor = true;
 <head>
 	<title>Media Tools</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=<?= $CHARSET; ?>"/>
-	<?php
-	include_once($SERVER_ROOT.'/includes/head.php');
-	?>
-	<script src="<?= $CLIENT_ROOT; ?>/js/jquery-3.7.1.min.js" type="text/javascript"></script>
-	<script src="<?= $CLIENT_ROOT; ?>/js/jquery-ui.min.js" type="text/javascript"></script>
 	<script type="text/javascript">
 		function verifyMigrationCode(f){
 			if(f.matchTermThumbnail.value == "" && f.matchTermWeb.value == "" && f.matchTermLarge.value == ""){
@@ -112,7 +107,7 @@ if($IS_ADMIN) $isEditor = true;
 								<option value="">-----------------------------</option>
 								<option value="0">Field Images</option>
 								<?php
-								$collArr = $toolManager->getCollectionMeta();
+								$collArr = $migrationManager->getCollectionMeta();
 								foreach($collArr as $id => $collName){
 									echo '<option value="'.$id.'" '.($collid==$id?'SELECTED':'').'>'.$collName.'</option>';
 								}
@@ -226,7 +221,7 @@ if($IS_ADMIN) $isEditor = true;
 </body>
 
 <?php
-include_once('../config/dbconnection.php');
+include_once($SERVER_ROOT . '/config/dbconnection.php');
 
 class MediaMigration {
 
@@ -251,6 +246,7 @@ class MediaMigration {
 	private $verboseMode = 0;
 
 	function __construct() {
+		$this->conn = MySQLiConnectionFactory::getCon('write');
 	}
 
 	function __destruct(){
@@ -259,10 +255,6 @@ class MediaMigration {
 			fwrite($this->logFH,"\n\n");
 			fclose($this->logFH);
 		}
-	}
-
-	private function setConn() {
-		$this->conn = MySQLiConnectionFactory::getCon($conType);
 	}
 
 	//NEON migration
@@ -336,7 +328,6 @@ class MediaMigration {
 		//Migrates images based on catalog number; NULL or weak catalogNumbers are skipped
 		set_time_limit(1200);
 		$this->verboseMode = 3;
-		$this->setConn();
 		$this->setLogFH();
 		if(!$this->imgRootUrl){
 			$this->outputStr('FATAL ERROR: imgRootUrl is not defined');
