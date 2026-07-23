@@ -266,9 +266,17 @@ class MediaMigration {
 		$sourceUrlPrefix = 'https://media01.symbiota.org/media/neon';
 		$replacementUrl = '/media/neon';
 		$sourcePathPrefix = '/mnt/biokic/biokic/media/neon';
-		$destinationPathPrefix = '/mnt/biokic/media/neon';
+		$targetPathPrefix = '/mnt/biokic/media/neon';
 		//$sourcePathPrefix = '/temp/NEON/migration/source/media/neon';
-		//$destinationPathPrefix = '/temp/NEON/migration/target/media/neon';
+		//$targetPathPrefix = '/temp/NEON/migration/target/media/neon';
+		if(!is_writable($sourcePathPrefix)){
+			$this->outputStr('FATAL ERROR: source path is not writable (source: ' . $sourcePathPrefix . ')', 1);
+			exit;
+		}
+		if(!is_writable($targetPathPrefix)){
+			$this->outputStr('FATAL ERROR: target path is not writable (target: ' . $targetPathPrefix . ')', 1);
+			exit;
+		}
 		$sql = 'SELECT mediaID, originalUrl, url, thumbnailUrl, mediaMD5, pixelXDimension, pixelYDimension, fileSize, fileSizeThumbnail, fileSizeMedium
 			FROM media
 			WHERE originalUrl LIKE "' . $sourceUrlPrefix . '%" AND occid IS NOT NULL';
@@ -282,15 +290,22 @@ class MediaMigration {
 			foreach($urlFieldArr as $urlField){
 				$pathFrag = substr($r[$urlField], strlen($sourceUrlPrefix));
 				$sourcePath = $sourcePathPrefix . $pathFrag;
-				$targetPath = $destinationPathPrefix . $pathFrag;
+				$targetPath = $targetPathPrefix . $pathFrag;
+				//Run some test to ensure that files can be transferred
 				if(!is_writable($sourcePath)){
 					$this->outputStr('Source file is not writable: ' . $sourcePath, 1);
 					continue;
 				}
+				//make sure that target base path exists
+				$targetBasePath = substr($targetPath, 0, strrpos($targetPath, '/'));
+				if(!file_exists($targetBasePath)){
+					mkdir($targetBasePath, 0755, true);
+				}
 				if(file_exists($targetPath)){
-					$this->outputStr('File not transferred because traget file already exists: ' . $targetPath, 1);
+					$this->outputStr('File not transferred because target file already exists: ' . $targetPath, 1);
 					continue;
 				}
+				//Start transfer
 				if(rename($sourcePath, $targetPath)){
 					if(strpos($r[$urlField], $sourceUrlPrefix) === 0){
 						$updateArr[$urlField] = $replacementUrl . $pathFrag;
