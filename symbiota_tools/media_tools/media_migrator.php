@@ -21,11 +21,15 @@ $urlPrefix = (array_key_exists('urlPrefix', $_POST) ? $_POST['urlPrefix'] : '');
 $submit = (array_key_exists('submitbutton', $_POST)?$_POST['submitbutton']:'');
 
 //Set defaults to be used for testing
+//$urlMatchTerm = 'https://media01.symbiota.org/media/neon';
 //if(!$sourcePathPrefix) $sourcePathPrefix = '/mnt/biokic/biokic/media/neon';
 //if(!$targetPathPrefix) $targetPathPrefix = '/mnt/biokic/media/neon';
-if(!$sourcePathPrefix) $sourcePathPrefix = '/temp/NEON/migration/source/media/neon';
-if(!$targetPathPrefix) $targetPathPrefix = '/temp/NEON/migration/target/media/neon';
-if(!$urlPrefix) $urlPrefix = '/media';
+//if(!$sourcePathPrefix) $sourcePathPrefix = '/temp/NEON/migration/source/media/neon';
+//if(!$targetPathPrefix) $targetPathPrefix = '/temp/NEON/migration/target/media/neon';
+//if(!$urlPrefix) $urlPrefix = '/media';
+
+if(!$targetPathPrefix && !empty($MEDIA_ROOT_PATH)) $targetPathPrefix = $MEDIA_ROOT_PATH;
+if(!$urlPrefix && !empty($MEDIA_ROOT_URL)) $urlPrefix = $MEDIA_ROOT_URL;
 
 $migrationManager = new MediaMigration();
 $migrationManager->setCollid($collid);
@@ -54,10 +58,10 @@ if($IS_ADMIN) $isEditor = true;
 	<style type="text/css">
 		fieldset{ padding: 10px; margin-bottom: 15px }
 		legend{ font-weight: bold }
-		.fieldRowDiv{ clear:both; margin: 2px 0px; }
+		.fieldRowDiv{ clear:both; margin: 10px; }
 		.fieldDiv{ float:left; margin: 2px 10px 2px 0px; }
-		.fieldLabel{  }
 		.fieldDiv button{ margin-top: 10px; }
+		button{ margin: 20px }
 	</style>
 </head>
 <body>
@@ -83,7 +87,7 @@ if($IS_ADMIN) $isEditor = true;
 								$migrationManager->setSourcePathPrefix($sourcePathPrefix);
 								$migrationManager->setTargetPathPrefix($targetPathPrefix);
 								$migrationManager->setUrlPrefix($urlPrefix);
-								$mediaIdStart = $migrationManager->migrateNeonMedia($mediaIdStart, $limit);
+								$mediaIdStart = $migrationManager->migrateMedia($mediaIdStart, $limit);
 							}
 							?>
 						</ul>
@@ -95,92 +99,92 @@ if($IS_ADMIN) $isEditor = true;
 			<fieldset>
 				<legend>Image Migration Tools</legend>
 				<div>This tool can be used to migrate images located on a remote server to the local server that is currently hosting the portal</div>
-				<form action="media_scripts.php" method="post" onsubmit="return verifyMigrationCode(this)">
-					<div class="fieldRowDiv">
-						<div class="fieldDiv">
-							<span class="fieldLabel">Collection ID (collid):</span>
-							<select name="collid">
-								<option value="unselected">Select a Collection</option>
-								<option value="unselected">-----------------------------</option>
-								<option value="">Field Images</option>
-								<option value="0">All Collection Images</option>
-								<?php
-								$collArr = $migrationManager->getCollectionMeta();
-								foreach($collArr as $id => $collName){
-									echo '<option value="'.$id.'" '.($collid==$id?'SELECTED':'').'>'.$collName.'</option>';
-								}
-								?>
-							</select>
-						</div>
-					</div>
-					<div class="fieldRowDiv">
-						<fieldset>
-							<legend>Transfer Target</legend>
-							<div class="fieldRowDiv">
-								<div class="fieldDiv">
-									<input name="transferThumbnail" type="checkbox" value="1" <?= ($transferThumbnail?'CHECKED':''); ?> />
-									<span class="fieldLabel">Transfer Thumbnail</span>
-								</div>
-							</div>
-							<div class="fieldRowDiv">
-								<div class="fieldDiv">
-									<input name="transferWeb" type="checkbox" value="1" <?= ($transferWeb ? 'CHECKED' : '') ?> />
-									<span class="fieldLabel">Transfer Web View (medium)</span>
-								</div>
-							</div>
-							<div class="fieldRowDiv">
-								<div class="fieldDiv">
-									<input name="transferLarge" type="checkbox" value="1" <?= ($transferLarge ? 'CHECKED' : '') ?> />
-									<span class="fieldLabel">Transfer Large Image</span>
-								</div>
-							</div>
-							<div class="fieldRowDiv" style="padding-top:10px">
-								<div class="fieldDiv">
-									<input name="deleteSource" type="checkbox" value="1" <?= ($deleteSource ? 'CHECKED' : '') ?> />
-									<span class="fieldLabel">Delete source images</span>
-								</div>
-							</div>
-						</fieldset>
-					</div>
+				<form action="media_migrator.php" method="post" onsubmit="return verifyMigrationCode(this)">
 					<div class="fieldRowDiv">
 						<fieldset>
 							<legend>Path Variables</legend>
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
-									<span class="fieldLabel">URL Matching Term (e.g. query string):</span>
-									<input name="urlMatchTerm" type="text" value="<?= htmlspecialchars($urlMatchTerm) ?>" style="width:300px" required >
+									<label for="urlMatchTerm">URL Matching Term (e.g. query string):</label>
+									<input id="urlMatchTerm" name="urlMatchTerm" type="text" value="<?= htmlspecialchars($urlMatchTerm) ?>" style="width:300px" required >
 								</div>
 							</div>
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
-									<span class="fieldLabel">Source Path:</span>
-									<input name="sourcePathPrefix" type="text" value="<?= htmlspecialchars($sourcePathPrefix) ?>" style="width:400px" required >
+									<label for="sourcePathPrefix">Source Path:</label>
+									<input id="sourcePathPrefix" name="sourcePathPrefix" type="text" value="<?= htmlspecialchars($sourcePathPrefix) ?>" style="width:400px" required >
 								</div>
 							</div>
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
-									<span class="fieldLabel">Target Path (imgRootPath):</span>
-									<input name="targetPathPrefix" type="text" value="<?= ($targetPathPrefix ? htmlspecialchars($targetPathPrefix) : $MEDIA_ROOT_PATH); ?>" style="width:400px" required >
+									<label for="targetPathPrefix">Target Path (imgRootPath):</label>
+									<input id="targetPathPrefix" name="targetPathPrefix" type="text" value="<?= htmlspecialchars($targetPathPrefix) ?>" style="width:400px" required >
 								</div>
 							</div>
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
-									<span class="fieldLabel">URL Path Prefix (e.g. imgRootUrl):</span>
-									<input name="urlPrefix" type="text" value="<?= ($urlPrefix ? htmlspecialchars($urlPrefix) : $MEDIA_ROOT_URL); ?>" style="width:400px" />
+									<label for="urlPrefix">URL Path Prefix (e.g. imgRootUrl):</label>
+									<input id="urlPrefix" name="urlPrefix" type="text" value="<?= htmlspecialchars($urlPrefix) ?>" style="width:400px" />
+								</div>
+							</div>
+						</fieldset>
+					</div>
+					<div class="fieldRowDiv">
+						<fieldset>
+							<legend>Transfer Options</legend>
+							<div class="fieldRowDiv">
+								<div class="fieldDiv">
+									<input id="transferThumbnail" name="transferThumbnail" type="checkbox" value="1" <?= ($transferThumbnail?'CHECKED':''); ?> />
+									<label for="transferThumbnail">Transfer Thumbnail</label>
+								</div>
+							</div>
+							<div class="fieldRowDiv">
+								<div class="fieldDiv">
+									<input id="transferWeb" name="transferWeb" type="checkbox" value="1" <?= ($transferWeb ? 'CHECKED' : '') ?> />
+									<label for="transferWeb">Transfer Web View (medium)</label>
+								</div>
+							</div>
+							<div class="fieldRowDiv">
+								<div class="fieldDiv">
+									<input id="transferLarge" name="transferLarge" type="checkbox" value="1" <?= ($transferLarge ? 'CHECKED' : '') ?> />
+									<label for="transferLarge">Transfer Large Image</label>
+								</div>
+							</div>
+							<div class="fieldRowDiv" style="padding-top:10px">
+								<div class="fieldDiv">
+									<input id="deleteSource" name="deleteSource" type="checkbox" value="1" <?= ($deleteSource ? 'CHECKED' : '') ?> />
+									<label for="deleteSource">Delete source images</label>
 								</div>
 							</div>
 						</fieldset>
 					</div>
 					<div class="fieldRowDiv">
 						<div class="fieldDiv">
-							<span class="fieldLabel">imgId start:</span>
-							<input type="text" name="mediaIdStart" value="<?= $mediaIdStart; ?>" />
+							<label for="collid">Collection ID (collid):</label>
+							<select id="collid" name="collid">
+								<option value="unselected">Select a Collection</option>
+								<option value="unselected">-----------------------------</option>
+								<option value="">Field Images</option>
+								<option value="0" <?= ($collid == 0 ? 'SELECTED' : '') ?>>All Collection Images</option>
+								<?php
+								$collArr = $migrationManager->getCollectionMeta();
+								foreach($collArr as $id => $collName){
+									echo '<option value="' . $id . '" ' . ($collid==$id ? 'SELECTED' : '') . '>' . $collName . '</option>';
+								}
+								?>
+							</select>
+						</div>
+					</div>
+					<div class="fieldRowDiv" stlye="padding-top: 15px">
+						<div class="fieldDiv">
+							<label for="mediaIdStart">imgId start:</label>
+							<input id="mediaIdStart" name="mediaIdStart" type="text" value="<?= $mediaIdStart; ?>" />
 						</div>
 					</div>
 					<div class="fieldRowDiv">
 						<div class="fieldDiv">
-							<span class="fieldLabel">Batch limit:</span>
-							<input type="text" name="limit" value="<?= $limit; ?>" />
+							<label for="limit">Batch limit:</label>
+							<input id="limit" name="limit" type="text" value="<?= $limit; ?>" />
 						</div>
 					</div>
 					<div class="fieldRowDiv">
@@ -233,8 +237,7 @@ class MediaMigration {
 		}
 	}
 
-	//NEON migration
-	public function migrateNeonMedia($mediaIdStart = 0, $limit = 1000){
+	public function migrateMedia($mediaIdStart = 0, $limit = 1000){
 		set_time_limit(1200);
 		$this->setVerboseMode(3);
 		$this->outputStr('Starting media file transfer (' . date('Y-m-d H:i:s') . ')');
@@ -269,7 +272,8 @@ class MediaMigration {
 				$sqlBase .= 'INNER JOIN omoccurrences o ON m.occid = o.occid ';
 			}
 			$sqlBase .= 'WHERE (m.' . $targetQueryField . ' LIKE ?) ';
-			$paramArr = array($this->urlMatchTerm);
+			$sqlBase .= 'AND (m.mediaID = 47708) ';
+			$paramArr = array($this->urlMatchTerm . '%');
 			$typeStr = 's';
 			if(is_numeric($this->collid)){
 				if($this->collid){
@@ -293,7 +297,7 @@ class MediaMigration {
 			//Get count
 			$targetCnt = 0;
 			$cntSql = 'SELECT COUNT(m.mediaID) AS cnt ' . $sqlBase;
-			if($cntStmt = $this->conn->query($cntSql)){
+			if($cntStmt = $this->conn->prepare($cntSql)){
 				$cntStmt->bind_param($typeStr, ...$paramArr);
 				$cntStmt->execute();
 				$cntStmt->bind_result($targetCnt);
@@ -303,7 +307,7 @@ class MediaMigration {
 			$this->outputStr('Target count: ' . $targetCnt, 1);
 
 			$cnt = 0;
-			if($stmt = $this->conn->query($sql)){
+			if($stmt = $this->conn->prepare($sql)){
 				$stmt->bind_param($typeStr, ...$paramArr);
 				$stmt->execute();
 				$rs = $stmt->get_result();
@@ -374,11 +378,11 @@ class MediaMigration {
 					if($updateArr){
 						if($this->databaseMediaRecord($r['mediaID'], $updateArr)){
 							$cnt++;
-							$recordID = $r->occid;
-							$link = $GLOBALS['SERVER_ROOT'] . '/collections/individual/index.php?occid=' . $r->occid;
-							if(!$r->occid){
-								$link = '/imagelib/imgdetails.php?mediaid=' . $r->mediaID;
-								$recordID = $r->mediaID;
+							$recordID = $r['occid'];
+							$link = $GLOBALS['CLIENT_ROOT'] . '/collections/individual/index.php?occid=' . $r['occid'];
+							if(!$r['occid']){
+								$link = '/imagelib/imgdetails.php?mediaid=' . $r['mediaID'];
+								$recordID = $r['mediaID'];
 							}
 							$this->outputStr($cnt.': Processing: <a href="' . $link . '" target="_blank">#' . $recordID . '</a>');
 						}
