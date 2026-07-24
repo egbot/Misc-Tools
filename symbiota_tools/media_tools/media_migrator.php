@@ -7,21 +7,25 @@ ini_set('display_errors', '1');
 include_once('../config/symbini.php');
 
 $collid = (array_key_exists('collid', $_POST) ? filter_var($_POST['collid'], FILTER_SANITIZE_NUMBER_INT) : '');
-$imgIdStart = (array_key_exists('imgidstart', $_POST) ? filter_var($_POST['imgidstart'], FILTER_SANITIZE_NUMBER_INT) : 0);
+$mediaIdStart = (array_key_exists('mediaIdStart', $_POST) ? filter_var($_POST['mediaIdStart'], FILTER_SANITIZE_NUMBER_INT) : 0);
 $limit = (array_key_exists('limit', $_POST) ? filter_var($_POST['limit'], FILTER_SANITIZE_NUMBER_INT) : 10000);
 
 $transferThumbnail = empty($_POST['transferThumbnail']) ? 0 : 1;
 $transferWeb = empty($_POST['transferWeb']) ? 0 : 1;
 $transferLarge = empty($_POST['transferLarge']) ? 0 : 1;
-$matchTermThumbnail = (array_key_exists('matchTermThumbnail', $_POST) ? $_POST['matchTermThumbnail'] : '');
-$matchTermWeb = (array_key_exists('matchTermWeb', $_POST) ? $_POST['matchTermWeb'] : '');
-$matchTermLarge = (array_key_exists('matchTermLarge', $_POST) ? $_POST['matchTermLarge'] : '');
+$urlMatchTerm = (array_key_exists('urlMatchTerm', $_POST) ? $_POST['urlMatchTerm'] : '');
 $deleteSource = empty($_POST['deleteSource']) ? 0 : 1;
-$imgRootUrl = (array_key_exists('imgRootUrl', $_POST) ? $_POST['imgRootUrl'] : '');
-$imgRootPath = (array_key_exists('imgRootPath', $_POST) ? $_POST['imgRootPath'] : '');
-$imgSubPath = (array_key_exists('imgSubPath', $_POST) ? $_POST['imgSubPath'] : '');
-$copyover = empty($_POST['copyover']) ? 0 : 1;
+$sourcePathPrefix = (array_key_exists('sourcePathPrefix', $_POST) ? $_POST['sourcePathPrefix'] : '');
+$targetPathPrefix = (array_key_exists('targetPathPrefix', $_POST) ? $_POST['targetPathPrefix'] : '');
+$urlPrefix = (array_key_exists('urlPrefix', $_POST) ? $_POST['urlPrefix'] : '');
 $submit = (array_key_exists('submitbutton', $_POST)?$_POST['submitbutton']:'');
+
+//Set defaults to be used for testing
+//if(!$sourcePathPrefix) $sourcePathPrefix = '/mnt/biokic/biokic/media/neon';
+//if(!$targetPathPrefix) $targetPathPrefix = '/mnt/biokic/media/neon';
+if(!$sourcePathPrefix) $sourcePathPrefix = '/temp/NEON/migration/source/media/neon';
+if(!$targetPathPrefix) $targetPathPrefix = '/temp/NEON/migration/target/media/neon';
+if(!$urlPrefix) $urlPrefix = '/media';
 
 $migrationManager = new MediaMigration();
 $migrationManager->setCollid($collid);
@@ -36,12 +40,12 @@ if($IS_ADMIN) $isEditor = true;
 	<meta http-equiv="Content-Type" content="text/html; charset=<?= $CHARSET; ?>"/>
 	<script type="text/javascript">
 		function verifyMigrationCode(f){
-			if(f.matchTermThumbnail.value == "" && f.matchTermWeb.value == "" && f.matchTermLarge.value == ""){
+			if(f.urlMatchTerm.value == ""){
 				alert("You need at least one matching term defined");
 				return false;
 			}
-			if(f.collid.value == ""){
-				alert("Select a collection project");
+			if(f.collid.value == "unselected"){
+				alert("Select a Collection Project or Field Images");
 				return false;
 			}
 			return true;
@@ -64,8 +68,6 @@ if($IS_ADMIN) $isEditor = true;
 			<h1 class="page-heading">Media Tools</h1>
 			<div id="actionDiv">
 				<?php
-				$submit = 'transferNeonMedia';
-				$imgIdStart = 0;
 				if($submit){
 					?>
 					<fieldset>
@@ -76,18 +78,12 @@ if($IS_ADMIN) $isEditor = true;
 								$migrationManager->setTransferThumbnail($transferThumbnail);
 								$migrationManager->setTransferWeb($transferWeb);
 								$migrationManager->setTransferLarge($transferLarge);
-								$migrationManager->setMatchTermThumbnail($matchTermThumbnail);
-								$migrationManager->setMatchTermWeb($matchTermWeb);
-								$migrationManager->setMatchTermLarge($matchTermLarge);
+								$migrationManager->setUrlMatchTerm($urlMatchTerm);
 								$migrationManager->setDeleteSource($deleteSource);
-								$migrationManager->setImgRootUrl($imgRootUrl);
-								$migrationManager->setImgRootPath($imgRootPath);
-								$migrationManager->setImgSubPath($imgSubPath);
-								$migrationManager->setCopyOverExistingImages($copyover);
-								$imgIdStart = $migrationManager->migrateCollectionDerivatives($imgIdStart, $limit);
-							}
-							elseif($submit == 'transferNeonMedia'){
-								$migrationManager->migrateNeonMedia();
+								$migrationManager->setSourcePathPrefix($sourcePathPrefix);
+								$migrationManager->setTargetPathPrefix($targetPathPrefix);
+								$migrationManager->setUrlPrefix($urlPrefix);
+								$mediaIdStart = $migrationManager->migrateNeonMedia($mediaIdStart, $limit);
 							}
 							?>
 						</ul>
@@ -104,10 +100,10 @@ if($IS_ADMIN) $isEditor = true;
 						<div class="fieldDiv">
 							<span class="fieldLabel">Collection ID (collid):</span>
 							<select name="collid">
-								<option value="">Select a Collection</option>
-								<option value="">-----------------------------</option>
-								<option value="-1">Field Images</option>
-								<option value="0">All images</option>
+								<option value="unselected">Select a Collection</option>
+								<option value="unselected">-----------------------------</option>
+								<option value="">Field Images</option>
+								<option value="0">All Collection Images</option>
 								<?php
 								$collArr = $migrationManager->getCollectionMeta();
 								foreach($collArr as $id => $collName){
@@ -148,60 +144,37 @@ if($IS_ADMIN) $isEditor = true;
 					</div>
 					<div class="fieldRowDiv">
 						<fieldset>
-							<legend>Transfer Source Query Term</legend>
-							<div class="fieldRowDiv">
-								<div class="fieldDiv">
-									<span class="fieldLabel">Thumbnail Matching Term (thumbnailUrl):</span>
-									<input name="matchTermThumbnail" type="text" value="<?= htmlspecialchars($matchTermThumbnail); ?>" style="width:300px" />
-								</div>
-							</div>
-							<div class="fieldRowDiv">
-								<div class="fieldDiv">
-									<span class="fieldLabel">Web Image (medium) Matching Term (url):</span>
-									<input name="matchTermWeb" type="text" value="<?= htmlspecialchars($matchTermWeb); ?>" style="width:300px" />
-								</div>
-							</div>
-							<div class="fieldRowDiv">
-								<div class="fieldDiv">
-									<span class="fieldLabel">Large Image Matching Term (originalurl):</span>
-									<input name="matchTermLarge" type="text" value="<?= htmlspecialchars($matchTermLarge); ?>" style="width:300px" />
-								</div>
-							</div>
-						</fieldset>
-					</div>
-					<div class="fieldRowDiv">
-						<fieldset>
 							<legend>Path Variables</legend>
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
-									<span class="fieldLabel">Image Root URL (imgRootUrl):</span>
-									<input name="imgRootUrl" type="text" value="<?= ($imgRootUrl ? htmlspecialchars($imgRootUrl) : $MEDIA_ROOT_URL); ?>" style="width:400px" />
+									<span class="fieldLabel">URL Matching Term (e.g. query string):</span>
+									<input name="urlMatchTerm" type="text" value="<?= htmlspecialchars($urlMatchTerm) ?>" style="width:300px" required >
 								</div>
 							</div>
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
-									<span class="fieldLabel">Image Root Path (imgRootPath):</span>
-									<input name="imgRootPath" type="text" value="<?= ($imgRootPath ? htmlspecialchars($imgRootPath) : $MEDIA_ROOT_PATH); ?>" style="width:400px" />
+									<span class="fieldLabel">Source Path:</span>
+									<input name="sourcePathPrefix" type="text" value="<?= htmlspecialchars($sourcePathPrefix) ?>" style="width:400px" required >
 								</div>
 							</div>
 							<div class="fieldRowDiv">
 								<div class="fieldDiv">
-									<span class="fieldLabel">Target Sub-Path:</span>
-									<input name="imgSubPath" type="text" value="<?= htmlspecialchars($imgSubPath) ?>" style="width:400px" />
+									<span class="fieldLabel">Target Path (imgRootPath):</span>
+									<input name="targetPathPrefix" type="text" value="<?= ($targetPathPrefix ? htmlspecialchars($targetPathPrefix) : $MEDIA_ROOT_PATH); ?>" style="width:400px" required >
+								</div>
+							</div>
+							<div class="fieldRowDiv">
+								<div class="fieldDiv">
+									<span class="fieldLabel">URL Path Prefix (e.g. imgRootUrl):</span>
+									<input name="urlPrefix" type="text" value="<?= ($urlPrefix ? htmlspecialchars($urlPrefix) : $MEDIA_ROOT_URL); ?>" style="width:400px" />
 								</div>
 							</div>
 						</fieldset>
-					</div>
-					<div class="fieldRowDiv">
-						<div class="fieldDiv">
-							<input type="checkbox" name="copyover" value="1" <?= ($copyover ? 'checked' : '') ?>>
-							<span class="fieldLabel">copyover existing target images</span>
-						</div>
 					</div>
 					<div class="fieldRowDiv">
 						<div class="fieldDiv">
 							<span class="fieldLabel">imgId start:</span>
-							<input type="text" name="imgidstart" value="<?= $imgIdStart; ?>" />
+							<input type="text" name="mediaIdStart" value="<?= $mediaIdStart; ?>" />
 						</div>
 					</div>
 					<div class="fieldRowDiv">
@@ -212,6 +185,11 @@ if($IS_ADMIN) $isEditor = true;
 					</div>
 					<div class="fieldRowDiv">
 						<button name="submitbutton" type="submit" value="transferImages">Transfer Images</button>
+					</div>
+					<div class="fieldRowDiv">
+						<div class="fieldDiv">
+							* If target file already exists, it will be overwritten
+						</div>
 					</div>
 				</form>
 			</fieldset>
@@ -234,15 +212,11 @@ class MediaMigration {
 	private $transferThumbnail = false;
 	private $transferWeb = false;
 	private $transferLarge = false;
-	private $matchTermThumbnail;
-	private $matchTermWeb;
-	private $matchTermLarge;
+	private $urlMatchTerm;
 	private $deleteSource = false;
-	private $imgRootUrl;
-	private $imgRootPath;
-	private $imgSubPath;
 	private $sourcePathPrefix;
-	private $copyOverExistingImages = false;
+	private $targetPathPrefix;
+	private $urlPrefix;
 
 	private $logFH;
 	private $verboseMode = 0;
@@ -260,92 +234,160 @@ class MediaMigration {
 	}
 
 	//NEON migration
-	public function migrateNeonMedia($start = 0, $limit = 1000){
+	public function migrateNeonMedia($mediaIdStart = 0, $limit = 1000){
+		set_time_limit(1200);
 		$this->setVerboseMode(3);
 		$this->outputStr('Starting media file transfer (' . date('Y-m-d H:i:s') . ')');
-		$sourceUrlPrefix = 'https://media01.symbiota.org/media/neon';
-		$replacementUrl = '/media/neon';
-		$sourcePathPrefix = '/mnt/biokic/biokic/media/neon';
-		$targetPathPrefix = '/mnt/biokic/media/neon';
-		//$sourcePathPrefix = '/temp/NEON/migration/source/media/neon';
-		//$targetPathPrefix = '/temp/NEON/migration/target/media/neon';
-		if(!is_writable($sourcePathPrefix)){
-			$this->outputStr('FATAL ERROR: source path is not writable (source: ' . $sourcePathPrefix . ')', 1);
+		if(!$this->urlMatchTerm){
+			$this->outputStr('FATAL ERROR: URL matching term has not been set');
 			exit;
 		}
-		if(!is_writable($targetPathPrefix)){
-			$this->outputStr('FATAL ERROR: target path is not writable (target: ' . $targetPathPrefix . ')', 1);
+		if(!$this->sourcePathPrefix){
+			$this->outputStr('FATAL ERROR: source path has not been provided');
 			exit;
 		}
-		$sql = 'SELECT mediaID, originalUrl, url, thumbnailUrl, mediaMD5, pixelXDimension, pixelYDimension, fileSize, fileSizeThumbnail, fileSizeMedium
-			FROM media
-			WHERE originalUrl LIKE "' . $sourceUrlPrefix . '%" AND occid IS NOT NULL';
-		if($start) $sql .= 'LIMIT ' . $start . ', ' . $limit;
+		if(!is_writable($this->sourcePathPrefix)){
+			$this->outputStr('FATAL ERROR: source path is not writable (source: ' . $this->sourcePathPrefix . ')');
+			exit;
+		}
+		if(!$this->targetPathPrefix){
+			$this->outputStr('FATAL ERROR: target path has not been provided');
+			exit;
+		}
+		if(!is_writable($this->targetPathPrefix)){
+			$this->outputStr('FATAL ERROR: target path is not writable (target: ' . $this->targetPathPrefix . ')');
+			exit;
+		}
+		$urlFieldArr = array();
+		if($this->transferLarge) $urlFieldArr[] = 'originalUrl';
+		if($this->transferWeb) $urlFieldArr[] = 'url';
+		if($this->transferThumbnail) $urlFieldArr[] = 'thumbnailUrl';
+		foreach($urlFieldArr as $targetQueryField){
+			$this->outputStr('Querying media based on search term: ' . $targetQueryField);
+			$sqlBase = 'FROM media m ';
+			if(is_numeric($this->collid)){
+				$sqlBase .= 'INNER JOIN omoccurrences o ON m.occid = o.occid ';
+			}
+			$sqlBase .= 'WHERE (m.' . $targetQueryField . ' LIKE ?) ';
+			$paramArr = array($this->urlMatchTerm);
+			$typeStr = 's';
+			if(is_numeric($this->collid)){
+				if($this->collid){
+					$sqlBase .= 'AND (o.collid = ?)';
+					$paramArr[] = $this->collid;
+					$typeStr .= 'i';
+				}
+			}
+			else{
+				//Target field images
+				$sqlBase .= 'AND (m.occid IS NULL) ';
+			}
+			if($mediaIdStart){
+				$sqlBase .= 'AND (m.mediaID > ?) ';
+				$paramArr[] = $mediaIdStart;
+				$typeStr .= 'i';
+			}
+			$sql = 'SELECT m.mediaID, m.occid, m.originalUrl, m.url, m.thumbnailUrl, m.mediaMD5, m.pixelXDimension, m.pixelYDimension, m.fileSize, m.fileSizeThumbnail, m.fileSizeMedium ' . $sqlBase;
+			if($limit) $sql .= 'LIMIT ' . $limit;
 
-		$cnt = 0;
-		$rs = $this->conn->query($sql);
-		while($r = $rs->fetch_assoc()){
-			$updateArr = array();
-			$urlFieldArr = array('originalUrl', 'url', 'thumbnailUrl');
-			foreach($urlFieldArr as $urlField){
-				$pathFrag = substr($r[$urlField], strlen($sourceUrlPrefix));
-				$sourcePath = $sourcePathPrefix . $pathFrag;
-				$targetPath = $targetPathPrefix . $pathFrag;
-				//Run some test to ensure that files can be transferred
-				if(!is_writable($sourcePath)){
-					$this->outputStr('Source file is not writable: ' . $sourcePath, 1);
-					continue;
-				}
-				//make sure that target base path exists
-				$targetBasePath = substr($targetPath, 0, strrpos($targetPath, '/'));
-				if(!file_exists($targetBasePath)){
-					mkdir($targetBasePath, 0755, true);
-				}
-				if(file_exists($targetPath)){
-					$this->outputStr('File not transferred because target file already exists: ' . $targetPath, 1);
-					continue;
-				}
-				//Start transfer
-				if(rename($sourcePath, $targetPath)){
-					if(strpos($r[$urlField], $sourceUrlPrefix) === 0){
-						$updateArr[$urlField] = $replacementUrl . $pathFrag;
-					}
-					if($urlField == 'originalUrl'){
-						if(!$r['mediaMD5']){
-							$updateArr['mediaMD5'] = md5_file($targetPath);
-						}
-						if(!$r['pixelXDimension']){
-							$dim = getimagesize($targetPath);
-							if ($dim !== false) {
-								$updateArr['pixelXDimension'] = $dim[0];
-								$updateArr['pixelYDimension'] = $dim[1];
+			//Get count
+			$targetCnt = 0;
+			$cntSql = 'SELECT COUNT(m.mediaID) AS cnt ' . $sqlBase;
+			if($cntStmt = $this->conn->query($cntSql)){
+				$cntStmt->bind_param($typeStr, ...$paramArr);
+				$cntStmt->execute();
+				$cntStmt->bind_result($targetCnt);
+				$cntStmt->fetch();
+				$cntStmt->close();
+			}
+			$this->outputStr('Target count: ' . $targetCnt, 1);
+
+			$cnt = 0;
+			if($stmt = $this->conn->query($sql)){
+				$stmt->bind_param($typeStr, ...$paramArr);
+				$stmt->execute();
+				$rs = $stmt->get_result();
+				while($r = $rs->fetch_assoc()){
+					$updateArr = array();
+					foreach($urlFieldArr as $urlField){
+						$transferFile = true;
+						if(strpos($r[$urlField], $this->urlMatchTerm) === 0){
+							$pathFrag = substr($r[$urlField], strlen($this->urlMatchTerm));
+							$sourcePath = $this->sourcePathPrefix . $pathFrag;
+							$targetPath = $this->targetPathPrefix . $pathFrag;
+							//Run some test to ensure that files can be transferred
+							if(!is_writable($sourcePath)){
+								if(file_exists($targetPath)){
+									//File has already been transferred (perhaps mapping in db twice?), thus just remap media urls in db
+									$transferFile = false;
+								}
+								else{
+									$this->outputStr('Source file is not writable: ' . $sourcePath, 1);
+									continue;
+								}
+							}
+							//make sure that target base path exists
+							$targetBasePath = substr($targetPath, 0, strrpos($targetPath, '/'));
+							if(!file_exists($targetBasePath)){
+								mkdir($targetBasePath, 0755, true);
+							}
+							//Start transfer
+							if($transferFile){
+								if($this->deleteSource){
+									if(!rename($sourcePath, $targetPath)){
+										$this->outputStr('Failed to transfer file (' . $sourcePath . ' => ' . $targetPath . ')', 1);
+										continue;
+									}
+								}
+								else{
+									if(!copy($sourcePath, $targetPath)){
+										$this->outputStr('Failed to copy file (' . $targetPath . ')', 1);
+										continue;
+									}
+								}
+							}
+
+							$updateArr[$urlField] = $this->urlPrefix . $pathFrag;
+							if($urlField == 'originalUrl'){
+								if(!$r['mediaMD5']){
+									$updateArr['mediaMD5'] = md5_file($targetPath);
+								}
+								if(!$r['pixelXDimension']){
+									$dim = getimagesize($targetPath);
+									if ($dim !== false) {
+										$updateArr['pixelXDimension'] = $dim[0];
+										$updateArr['pixelYDimension'] = $dim[1];
+									}
+								}
+								if(!$r['fileSize']){
+									$updateArr['fileSize'] = round(filesize($targetPath) / 1024);
+								}
+							}
+							elseif($urlField == 'url'){
+								$updateArr['fileSizeMedium'] = round(filesize($targetPath) / 1024);
+							}
+							elseif($urlField == 'thumbnailUrl'){
+								$updateArr['fileSizeThumbnail'] = round(filesize($targetPath) / 1024);
 							}
 						}
-						if(!$r['fileSize']){
-							$updateArr['fileSize'] = round(filesize($targetPath) / 1024);
+					}
+					if($updateArr){
+						if($this->databaseMediaRecord($r['mediaID'], $updateArr)){
+							$cnt++;
+							$recordID = $r->occid;
+							$link = $GLOBALS['SERVER_ROOT'] . '/collections/individual/index.php?occid=' . $r->occid;
+							if(!$r->occid){
+								$link = '/imagelib/imgdetails.php?mediaid=' . $r->mediaID;
+								$recordID = $r->mediaID;
+							}
+							$this->outputStr($cnt.': Processing: <a href="' . $link . '" target="_blank">#' . $recordID . '</a>');
 						}
 					}
-					elseif($urlField == 'url'){
-						$updateArr['fileSizeMedium'] = round(filesize($targetPath) / 1024);
-					}
-					elseif($urlField == 'thumbnailUrl'){
-						$updateArr['fileSizeThumbnail'] = round(filesize($targetPath) / 1024);
-					}
 				}
-				else{
-					$this->outputStr('File transfer failed (' . $sourcePath . ' => ' . $targetPath . ')', 1);
-				}
-			}
-			if($updateArr){
-				if($this->databaseMediaRecord($r['mediaID'], $updateArr)){
-					$cnt++;
-					if($cnt % 1000 === 0){
-						$this->outputStr($cnt . ' media files transferred ', 1);
-					}
-				}
+				$rs->free();
+				$stmt->close();
 			}
 		}
-		$rs->free();
 		$this->outputStr('Done transferring ' . $cnt . ' media files (' . date('Y-m-d H:i:s') . ')');
 		/*
 		 * ALTER TABLE `media`
@@ -355,189 +397,7 @@ class MediaMigration {
 		 */
 	}
 
-	//General migration scritps
-	public function migrateCollectionDerivatives($imgIdStart, $limit){
-		//Migrates images based on catalog number; NULL or weak catalogNumbers are skipped
-		set_time_limit(1200);
-		$this->setVerboseMode(3);
-		if(!$this->imgRootUrl){
-			$this->outputStr('FATAL ERROR: imgRootUrl is not defined');
-			return false;
-		}
-		if(!$this->imgRootPath){
-			$this->outputStr('FATAL ERROR: imgRootPath is not defined');
-			return false;
-		}
-
-		if($this->collid && is_numeric($limit) && $this->imgRootUrl && $this->imgRootPath){
-			if($this->transferThumbnail || $this->transferWeb || $this->transferLarge){
-				if($this->matchTermThumbnail || $this->matchTermWeb || $this->matchTermLarge){
-					echo '<ul>';
-					$this->setTargetPaths();
-					$processingCnt = 0;
-					$sqlBase = 'FROM media m INNER JOIN omoccurrences o ON m.occid = o.occid WHERE o.collid = ' . $this->collid . ' AND m.mediaType = "image" ';
-					if($this->matchTermThumbnail) $sqlBase .= 'AND thumbnailurl LIKE "'.$this->matchTermThumbnail.'%" ';
-					if($this->matchTermWeb) $sqlBase .= 'AND url LIKE "'.$this->matchTermWeb.'%" ';
-					if($this->matchTermLarge) $sqlBase .= 'AND originalurl LIKE "'.$this->matchTermLarge.'%" ';
-					$targetCount = 0;
-					$sqlCount = 'SELECT COUNT(m.mediaID) as cnt '.$sqlBase.' ';
-					if($imgIdStart && is_numeric($imgIdStart)) $sqlCount .= 'AND mediaID > '.$imgIdStart.' ';
-					$rsCount = $this->conn->query($sqlCount);
-					while($rCount = $rsCount->fetch_object()){
-						$targetCount = $rCount->cnt;
-					}
-					$rsCount->free();
-					$this->outputStr('Starting remapping of '.$limit.' out of '.$targetCount.' possible target media ');
-					do{
-						$imgArr = array();
-						$sql = 'SELECT m.mediaID, m.thumbnailurl, m.url, m.originalurl, o.catalognumber, o.occid '.$sqlBase;
-						if($imgIdStart && is_numeric($imgIdStart)) $sql .= 'AND mediaID > '.$imgIdStart.' ';
-						$sql .= 'ORDER BY mediaID LIMIT 100';
-						//$this->outputStr('sql used: '. $sql);
-						$rs = $this->conn->query($sql);
-						while($r = $rs->fetch_object()){
-							$imgIdStart = $r->mediaID;
-							$pathFrag = '';
-							if(preg_match('/^(\D*).*(\d{4,})/', $r->catalognumber, $m)){
-								$catNum = $m[2];
-								if($catNum){
-									if(strlen($catNum)<8) $catNum = str_pad($catNum,8,'0',STR_PAD_LEFT);
-									$pathFrag = $m[1].substr($catNum,0,strlen($catNum)-4).'/';
-								}
-							}
-							if(!$pathFrag) $pathFrag = date('Ymd').'/';
-							if(!file_exists($this->imgRootPath.$pathFrag)) mkdir($this->imgRootPath.$pathFrag);
-							$this->outputStr($processingCnt.': Processing: <a href="../../individual/index.php?occid=' . htmlspecialchars($r->occid, ENT_COMPAT | ENT_HTML401 | ENT_SUBSTITUTE) . '" target="_blank">' . htmlspecialchars($r->occid, ENT_COMPAT | ENT_HTML401 | ENT_SUBSTITUTE) . '</a>');
-							if($this->transferThumbnail && $r->thumbnailurl){
-								$fileName = basename($r->thumbnailurl);
-								$targetPath = $this->imgRootPath.$pathFrag.$fileName;
-								$targetUrl = $this->imgRootUrl.$pathFrag.$fileName;
-								$thumbPath = $this->getLocalPath($r->thumbnailurl);
-								if(file_exists($thumbPath)){
-									if($this->copyOverExistingImages || !file_exists($targetPath)){
-										if(copy($thumbPath, $targetPath)){
-											$imgArr[$r->mediaID]['tn'] = $targetUrl;
-											$this->outputStr('Copied: '.$thumbPath.' => '.$targetPath,1);
-											if($this->deleteSource){
-												if(unlink($thumbPath)){
-													$this->outputStr('Source deleted: '.$thumbPath,1);
-												}
-												else{
-													$this->outputStr('ERROR deleting source (file permissions?): '.$thumbPath,1);
-												}
-											}
-										}
-									}
-									else{
-										$this->outputStr('Skipped: target file already exists (' . $targetPath . ')', 1);
-									}
-								}
-								else{
-									$this->outputStr('Skipped: source thumbnail does not exist (' . $thumbPath . ')', 1);
-								}
-							}
-							if($this->transferWeb && $r->url){
-								$fileName = basename($r->url);
-								$targetPath = $this->imgRootPath.$pathFrag.$fileName;
-								$targetUrl = $this->imgRootUrl.$pathFrag.$fileName;
-								$urlPath = $this->getLocalPath($r->url);
-								if(file_exists($urlPath)){
-									if($this->copyOverExistingImages || !file_exists($targetPath)){
-										if(copy($urlPath, $targetPath)){
-											$imgArr[$r->mediaID]['web'] = $targetUrl;
-											$this->outputStr('Copied: '.$urlPath.' => '.$targetPath,1);
-											if($this->deleteSource){
-												if(unlink($urlPath)){
-													$this->outputStr('Source delete: '.$urlPath,1);
-												}
-												else{
-													$this->outputStr('ERROR deleting source (file permissions?): '.$urlPath,1);
-												}
-											}
-										}
-									}
-									else{
-										$this->outputStr('Skipped: target file already exists (' . $targetPath . ')', 1);
-									}
-								}
-								else{
-									$this->outputStr('Skipped: source file does not exist (' . $urlPath . ')', 1);
-								}
-							}
-							if($this->transferLarge && $r->originalurl){
-								$fileName = basename($r->originalurl);
-								$targetPath = $this->imgRootPath.$pathFrag.$fileName;
-								$targetUrl = $this->imgRootUrl.$pathFrag.$fileName;
-								$origPath = $this->getLocalPath($r->originalurl);
-								if(file_exists($origPath)){
-									if($this->copyOverExistingImages || !file_exists($targetPath)){
-										if(copy($origPath, $targetPath)){
-											$imgArr[$r->mediaID]['lg'] = $targetUrl;
-											$this->outputStr('Copied: '.$origPath.' => '.$targetPath,1);
-											if($this->deleteSource){
-												if(unlink($origPath)){
-													$this->outputStr('Source deleted: '.$origPath,1);
-												}
-												else{
-													$this->outputStr('ERROR deleting source (file permissions?): '.$origPath,1);
-												}
-											}
-										}
-									}
-									else{
-										$this->outputStr('Skipped: target file already exists (' . $targetPath . ')', 1);
-									}
-								}
-								else{
-									$this->outputStr('Skipped: source file does not exist (' . $origPath . ')', 1);
-								}
-							}
-							$processingCnt++;
-							$limit--;
-							if($limit < 1) break;
-						}
-						$rs->free();
-						$this->databaseImageArr($imgArr);
-						$cnt = count($imgArr);
-						$this->outputStr($processingCnt.' image records remapped ('.date('Y-m-d H:i:s').')');
-						unset($imgArr);
-					}while($cnt && $limit);
-					echo '</ul>';
-				}
-			}
-		}
-		return $imgIdStart;
-	}
-
 	//Support functions
-	private function getLocalPath($imageUrl){
-		if($this->sourcePathPrefix){
-			$adjustedUrl = str_replace($this->sourcePathPrefix, $GLOBALS['MEDIA_ROOT_PATH'], $imageUrl);
-			if(file_exists($adjustedUrl)) return $adjustedUrl;
-		}
-		if(file_exists($imageUrl)){
-			return $imageUrl;
-		}
-		if(strpos($imageUrl, $GLOBALS['MEDIA_ROOT_URL']) !== false){
-			$adjustedUrl = str_replace($GLOBALS['MEDIA_ROOT_URL'], $GLOBALS['MEDIA_ROOT_PATH'], $imageUrl);
-			if(file_exists($adjustedUrl)) return $adjustedUrl;
-		}
-		$prefix = substr($GLOBALS['MEDIA_ROOT_PATH'], 0, strlen($GLOBALS['MEDIA_ROOT_PATH']) - strlen($GLOBALS['MEDIA_ROOT_URL']));
-		if(file_exists($prefix.$imageUrl)){
-			$this->sourcePathPrefix = $prefix;
-			return $prefix.$imageUrl;
-		}
-		return $imageUrl;
-	}
-
-	private function databaseImageArr($inputArr){
-		$this->outputStr('Remapping ' . count($inputArr) . ' media records');
-		foreach($inputArr as $mediaID => $mediaArr){
-			$this->databaseMediaRecord($mediaID, $mediaArr);
-		}
-		$this->outputStr('Done!', 1);
-	}
-
 	private function databaseMediaRecord($mediaID, $inputArr){
 		$status = false;
 		$fieldArr = array('originalurl' => 's', 'url' => 's', 'thumbnailurl' => 's', 'mediamd5' => 's', 'pixelxdimension' => 'i', 'pixelydimension' => 'i', 'filesize' => 'i', 'filesizethumbnail' => 'i', 'filesizemedium' => 'i');
@@ -570,20 +430,6 @@ class MediaMigration {
 			}
 		}
 		return $status;
-	}
-
-	private function setTargetPaths(){
-		if($this->imgRootPath && $this->imgRootUrl){
-			if($this->collid){
-				$this->imgRootPath .= $this->collMetaArr['code'].'/';
-				$this->imgRootUrl .= $this->collMetaArr['code'].'/';
-			}
-			elseif($this->collid === 0){
-				$this->imgRootPath .= 'fieldimg/';
-				$this->imgRootUrl .= 'fieldimg/';
-			}
-			if(!file_exists($this->imgRootPath)) mkdir($this->imgRootPath);
-		}
 	}
 
 	private function setLogFH(){
@@ -650,39 +496,25 @@ class MediaMigration {
 		else $this->transferLarge = false;
 	}
 
-	public function setMatchTermThumbnail($str){
-		$this->matchTermThumbnail = $str;
-	}
-
-	public function setMatchTermWeb($str){
-		$this->matchTermWeb = $str;
-	}
-
-	public function setMatchTermLarge($str){
-		$this->matchTermLarge = $str;
+	public function setUrlMatchTerm($str){
+		$this->urlMatchTerm = $str;
 	}
 
 	public function setDeleteSource($bool){
 		$this->deleteSource = $bool;
 	}
 
-	public function setImgRootUrl($url){
-		if(substr($url, -1) != '/') $url .= '/';
-		$this->imgRootUrl = $url;
+	public function setSourcePathPrefix($path){
+		if(substr($path, -1) != '/') $path .= '/';
+		$this->sourcePathPrefix = $path;
 	}
 
-	public function setImgRootPath($url){
-		if(substr($url, -1) != '/') $url .= '/';
-		$this->imgRootPath = $url;
+	public function setTargetPathPrefix($path){
+		$this->targetPathPrefix = $path;
 	}
 
-	public function setImgSubPath($path){
-		$this->imgSubPath = $path;
-	}
-
-	public function setCopyOverExistingImages($bool){
-		if($bool) $this->copyOverExistingImages = true;
-		else $this->copyOverExistingImages = false;
+	public function setUrlPrefix($url){
+		$this->urlPrefix = $url;
 	}
 
 	public function setVerboseMode($mode){
