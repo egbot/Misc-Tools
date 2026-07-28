@@ -39,22 +39,6 @@ class MediaMigration {
 			$this->outputStr('FATAL ERROR: URL matching term has not been set');
 			exit;
 		}
-		if(!$this->sourcePathPrefix){
-			$this->outputStr('FATAL ERROR: source path has not been provided');
-			exit;
-		}
-		if(!is_writable($this->sourcePathPrefix)){
-			$this->outputStr('FATAL ERROR: source path is not writable (source: ' . $this->sourcePathPrefix . ')');
-			exit;
-		}
-		if(!$this->targetPathPrefix){
-			$this->outputStr('FATAL ERROR: target path has not been provided');
-			exit;
-		}
-		if(!is_writable($this->targetPathPrefix)){
-			$this->outputStr('FATAL ERROR: target path is not writable (target: ' . $this->targetPathPrefix . ')');
-			exit;
-		}
 		$this->outputStr('Querying databnase media table based on search term: ' . $targetQueryField);
 		$sqlBase = 'FROM media m ';
 		if(is_numeric($this->collid)){
@@ -102,7 +86,7 @@ class MediaMigration {
 			$rs = $stmt->get_result();
 			while($rowArr = $rs->fetch_assoc()){
 				if($dataArr = $this->processMediaRecord($rowArr)){
-					if($this->databaseMediaRecord($rowArr['mediaID'], $updateArr)){
+					if($this->databaseMediaRecord($rowArr['mediaID'], $dataArr)){
 						$cnt++;
 						$recordID = $rowArr['occid'];
 						$link = $GLOBALS['CLIENT_ROOT'] . '/collections/individual/index.php?occid=' . $rowArr['occid'];
@@ -128,16 +112,54 @@ class MediaMigration {
 		 */
 	}
 
-	public function migrateDataViaDataFile($dataFile){
+	public function migrateMediaViaDataFile($dataFile){
 		if(!file_exists($dataFile)){
-
+			$this->outputStr('FATAL ERROR: source data file has not been provided');
+			exit;
 		}
-		$fh = fopen($dataFile, 'r'){
+		if (($fh = fopen($dataFile, 'r')) !== FALSE) {
+			while (($rowArr = fgetcsv($fh)) !== FALSE) {
+				if(empty($rowArr['mediaID'])){
+					$this->outputStr('ERROR: skipping record because mediaID has not been provided');
+					continue;
+				}
+				$dataArr = $this->processMediaRecord($rowArr);
+				$sql = 'UPDATE media SET ';
+				foreach($dataArr as $fieldName => $value){
+					$sql .= $fieldName . ' = "' . $value;
+				}
 
+				$this->databaseMediaRecord($updateArr);
+				$cnt++;
+				$recordID = $rowArr['occid'];
+				$link = $GLOBALS['CLIENT_ROOT'] . '/collections/individual/index.php?occid=' . $rowArr['occid'];
+				if(!$rowArr['occid']){
+					$link = $GLOBALS['CLIENT_ROOT'] . '/imagelib/imgdetails.php?mediaid=' . $rowArr['mediaID'];
+					$recordID = $rowArr['mediaID'];
+				}
+				$this->outputStr($cnt.': Processing: <a href="' . $link . '" target="_blank">#' . $recordID . '</a>');
+			}
+			fclose($fh);
 		}
 	}
 
 	private function processMediaRecord($recordArr){
+		if(!$this->sourcePathPrefix){
+			$this->outputStr('FATAL ERROR: source path has not been provided');
+			exit;
+		}
+		if(!is_writable($this->sourcePathPrefix)){
+			$this->outputStr('FATAL ERROR: source path is not writable (source: ' . $this->sourcePathPrefix . ')');
+			exit;
+		}
+		if(!$this->targetPathPrefix){
+			$this->outputStr('FATAL ERROR: target path has not been provided');
+			exit;
+		}
+		if(!is_writable($this->targetPathPrefix)){
+			$this->outputStr('FATAL ERROR: target path is not writable (target: ' . $this->targetPathPrefix . ')');
+			exit;
+		}
 		$dataReturnArr = array();
 		$urlFieldArr = array();
 		if($this->transferLarge) $urlFieldArr[] = 'originalUrl';
@@ -211,12 +233,11 @@ class MediaMigration {
 	//Support functions
 	private function databaseMediaRecord($mediaID, $inputArr){
 		$status = false;
-		$fieldArr = array('originalurl' => 's', 'url' => 's', 'thumbnailurl' => 's', 'mediamd5' => 's', 'pixelxdimension' => 'i', 'pixelydimension' => 'i', 'filesize' => 'i', 'filesizethumbnail' => 'i', 'filesizemedium' => 'i');
+		$fieldArr = array('originalUrl' => 's', 'url' => 's', 'thumbnailUrl' => 's', 'mediamd5' => 's', 'pixelxdimension' => 'i', 'pixelydimension' => 'i', 'filesize' => 'i', 'filesizethumbnail' => 'i', 'filesizemedium' => 'i');
 		$inputFieldArr = array();
 		$paramArr = array();
 		$typeStr = '';
 		foreach($inputArr as $field => $value){
-			$field = strtolower($field);
 			if(isset($fieldArr[$field])){
 				$inputFieldArr[] = $field;
 				$paramArr[] = $value;

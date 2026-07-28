@@ -7,27 +7,27 @@ ini_set('display_errors', '1');
 include_once('MediaMigration.php');
 
 
-$dataSourceFile = '';
+$dataSourceFile = '';		//test_migration.csv
 $transferThumbnail = 1;
 $transferWeb = 1;
 $transferLarge = 1;
 $deleteSource = 1;
-$sourcePathPrefix = '';
+$sourcePathPrefix = '';		// /Temp/media/source/
 $targetPathPrefix = '';
 $urlPrefix = '';
 
 
 $migrationManager = new MediaMigration();
-$migrationManager->setVerboseMode(2);
-
-$migrationManager->setTransferThumbnail($transferThumbnail);
-$migrationManager->setTransferWeb($transferWeb);
-$migrationManager->setTransferLarge($transferLarge);
-$migrationManager->setUrlMatchTerm($urlMatchTerm);
-$migrationManager->setDeleteSource($deleteSource);
-$migrationManager->setSourcePathPrefix($sourcePathPrefix);
-$migrationManager->setTargetPathPrefix($targetPathPrefix);
-$migrationManager->setUrlPrefix($urlPrefix);
-$mediaIdStart = $migrationManager->migrateMedia($mediaIdStart, $limit);
-
+if($dataSourceFile){
+	$migrationManager->setVerboseMode(2);
+	$migrationManager->setTransferThumbnail($transferThumbnail);
+	$migrationManager->setTransferWeb($transferWeb);
+	$migrationManager->setTransferLarge($transferLarge);
+	$migrationManager->setUrlMatchTerm($urlMatchTerm);
+	$migrationManager->setDeleteSource($deleteSource);
+	$migrationManager->setSourcePathPrefix($sourcePathPrefix);
+	$migrationManager->setTargetPathPrefix($targetPathPrefix);
+	$migrationManager->setUrlPrefix($urlPrefix);
+	$migrationManager->migrateMediaViaDataFile($dataSourceFile);
+}
 ?>
