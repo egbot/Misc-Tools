@@ -132,6 +132,8 @@ class MediaMigration {
 			$this->outputStr('FATAL ERROR: source data file has not been provided');
 			exit;
 		}
+		$this->setLogFH();
+		$this->outputStr('Starting media file transfer via input file (' . date('Y-m-d H:i:s') . ')');
 		if (($inputFH = fopen($dataFile, 'r')) !== FALSE) {
 			$outputFile = 'data/mediaUpdateFile_' . time() . '.sql';
 			$outputFH = null;
@@ -175,11 +177,12 @@ class MediaMigration {
 					}
 					$cnt++;
 					if($cnt%1000 === 0){
-						$this->outputStr($cnt . ' records processed', 1);
+						$this->outputStr($cnt . ' records processed (' . date('Y-m-d H:i:s') . ')', 1);
 					}
 				}
 			}
 			fclose($inputFH);
+			$this->outputStr('Done transferring ' . $cnt . ' media files (' . date('Y-m-d H:i:s') . ')');
 		}
 		/*
 		 * Example SQL for extracting records to remap
@@ -383,8 +386,8 @@ class MediaMigration {
 	}
 
 	private function setLogFH(){
-		$logPath = 'logs/mediaMigration_' . date('Y-m-d') . '.log';
-		$this->logFH = fopen($logPath, 'a');
+		$logPath = 'logs/mediaProcessing_' . time() . '.log';
+		$this->logFH = fopen($logPath, 'x');
 	}
 
 	public function appendQueryTerm($fieldName, $condition, $value){
@@ -443,9 +446,6 @@ class MediaMigration {
 
 	public function setVerboseMode($mode){
 		if(is_numeric($mode)) $this->verboseMode = $mode;
-		if($this->verboseMode == 1 || $this->verboseMode == 3){
-			$this->setLogFH();
-		}
 	}
 }
 ?>
