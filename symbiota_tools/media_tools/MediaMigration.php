@@ -430,7 +430,6 @@ class MediaMigration {
 	}
 
 	public function setSourcePathPrefix($path){
-		if(substr($path, -1) != '/') $path .= '/';
 		$this->sourcePathPrefix = $path;
 	}
 
