@@ -15,8 +15,7 @@ $deleteSource = 1;
 $urlMatchTerm = '';
 $sourcePathPrefix = '';
 $targetPathPrefix = '';
-$urlPrefix = '';
-
+$targetUrlPrefix = '';
 
 $migrationManager = new MediaMigration();
 if($dataSourceFile){
@@ -28,7 +27,7 @@ if($dataSourceFile){
 	$migrationManager->setUrlMatchTerm($urlMatchTerm);
 	$migrationManager->setSourcePathPrefix($sourcePathPrefix);
 	$migrationManager->setTargetPathPrefix($targetPathPrefix);
-	$migrationManager->setUrlPrefix($urlPrefix);
+	$migrationManager->setTargetUrlPrefix($targetUrlPrefix);
 	$migrationManager->migrateMediaViaDataFile($dataSourceFile);
 }
 ?>
