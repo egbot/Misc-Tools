@@ -1,5 +1,5 @@
 <?php
-include_once($SERVER_ROOT . '/config/dbconnection.php');
+@include_once($SERVER_ROOT . '/config/dbconnection.php');
 
 class MediaMigration {
 
@@ -20,7 +20,6 @@ class MediaMigration {
 	private $verboseMode = 0;
 
 	function __construct() {
-		$this->conn = MySQLiConnectionFactory::getCon('write');
 	}
 
 	function __destruct(){
@@ -31,22 +30,23 @@ class MediaMigration {
 		}
 	}
 
-	public function migrateMedia($queryTerm, $mediaIdStart = 0, $limit = 1000){
+	public function migrateMedia($mediaIdStart = 0, $limit = 1000){
 		set_time_limit(1200);
+		$this->conn = MySQLiConnectionFactory::getCon('write');
 		$this->setVerboseMode(1);
 		$this->outputStr('Starting media file transfer (' . date('Y-m-d H:i:s') . ')');
-		if(!$queryTerm){
+		if(!$this->urlMatchTerm){
 			$this->outputStr('FATAL ERROR: URL matching term has not been set');
 			exit;
 		}
-		$this->outputStr('Querying databnase media table based on search term: ' . $targetQueryField);
+		$this->outputStr('Querying database media table based on search term: ' . $targetQueryField);
 		$sqlBase = 'FROM media m ';
 		if(is_numeric($this->collid)){
 			$sqlBase .= 'INNER JOIN omoccurrences o ON m.occid = o.occid ';
 		}
 		$sqlBase .= 'WHERE (m.' . $targetQueryField . ' LIKE ?) ';
 		//$sqlBase .= 'AND (m.mediaID = 47708) ';		//Used for debugging
-		$paramArr = array($queryTerm . '%');
+		$paramArr = array($this->urlMatchTerm . '%');
 		$typeStr = 's';
 		if(is_numeric($this->collid)){
 			if($this->collid){
@@ -64,7 +64,8 @@ class MediaMigration {
 			$paramArr[] = $mediaIdStart;
 			$typeStr .= 'i';
 		}
-		$sql = 'SELECT m.mediaID, m.occid, m.originalUrl, m.url, m.thumbnailUrl, m.mediaMD5, m.pixelXDimension, m.pixelYDimension, m.fileSize, m.fileSizeThumbnail, m.fileSizeMedium ' . $sqlBase;
+		$fieldArr = $this->getFieldArr();
+		$sql = 'SELECT m.mediaID, m.occid, m.' . implode(', m.', $fieldArr) . ' ' . $sqlBase;
 		if($limit) $sql .= 'LIMIT ' . $limit;
 
 		//Get count
@@ -117,30 +118,62 @@ class MediaMigration {
 			$this->outputStr('FATAL ERROR: source data file has not been provided');
 			exit;
 		}
-		if (($fh = fopen($dataFile, 'r')) !== FALSE) {
-			while (($rowArr = fgetcsv($fh)) !== FALSE) {
-				if(empty($rowArr['mediaID'])){
+		if (($inputFH = fopen($dataFile, 'r')) !== FALSE) {
+			$outputFile = 'data/mediaUpdateFile_' . time() . '.sql';
+			$outputFH = null;
+			if (($outputFH = fopen($outputFile, 'x')) === FALSE) {
+				$this->outputStr('FATAL ERROR: Unable to create a writable output file');
+				exit;
+			}
+			$cnt = 0;
+			// Read header in order to create a map for the column names
+			$headerMap = fgetcsv($inputFH);
+			if(!$headerMap){
+				$this->outputStr('FATAL ERROR: Unable to create header map');
+				exit;
+			}
+			$fieldArr = $this->getFieldArr();
+			while (($inputArr = fgetcsv($inputFH)) !== FALSE) {
+				$recordArr = array_combine($headerMap, $inputArr);
+				if(empty($recordArr['mediaID'])){
 					$this->outputStr('ERROR: skipping record because mediaID has not been provided');
 					continue;
 				}
-				$dataArr = $this->processMediaRecord($rowArr);
+				$dataArr = $this->processMediaRecord($recordArr);
 				$sql = 'UPDATE media SET ';
+				$delimiter = '';
 				foreach($dataArr as $fieldName => $value){
-					$sql .= $fieldName . ' = "' . $value;
+					if(array_key_exists($fieldName, $fieldArr)){
+						$sql .= $delimiter . $fieldName . ' = ';
+						if($fieldArr[$fieldName] == 'i'){
+							$sql .= $value;
+						}
+						else{
+							$sql .= '"' . $value . '"';
+						}
+						$delimiter = ', ';
+					}
 				}
-
-				$this->databaseMediaRecord($updateArr);
+				$sql .= ' WHERE mediaID = ' . $recordArr['mediaID'] . ';' . "\n";
+				if (fwrite($outputFH, $sql) === FALSE) {
+					$this->outputStr('FATAL ERROR: skipping record because mediaID has not been provided');
+					exit;
+				}
 				$cnt++;
-				$recordID = $rowArr['occid'];
-				$link = $GLOBALS['CLIENT_ROOT'] . '/collections/individual/index.php?occid=' . $rowArr['occid'];
-				if(!$rowArr['occid']){
-					$link = $GLOBALS['CLIENT_ROOT'] . '/imagelib/imgdetails.php?mediaid=' . $rowArr['mediaID'];
-					$recordID = $rowArr['mediaID'];
+				if($cnt%1000 === 0){
+					$this->outputStr($cnt . ' records processed', 1);
 				}
-				$this->outputStr($cnt.': Processing: <a href="' . $link . '" target="_blank">#' . $recordID . '</a>');
 			}
-			fclose($fh);
+			fclose($inputFH);
 		}
+		/*
+		 * Example SQL for extracting records to remap
+		 * SELECT mediaID, IFNULL(originalUrl, "") as originalUrl, IFNULL(url, "") as url, IFNULL(thumbnailUrl, "") as thumbnailUrl, IFNULL(mediaMD5, "") as mediaMD5,
+		 * IFNULL(pixelXDimension, "") as pixelXDimension, IFNULL(pixelYDimension, "") as pixelYDimension, IFNULL(fileSize, "") as fileSize,
+		 * IFNULL(fileSizeThumbnail, "") as fileSizeThumbnail, IFNULL(fileSizeMedium, "") as fileSizeMedium
+		 * FROM media
+		 * WHERE originalUrl LIKE "https://media01.symbiota.org/media/%" and occid IS NOT NULL
+		 */
 	}
 
 	private function processMediaRecord($recordArr){
@@ -233,7 +266,7 @@ class MediaMigration {
 	//Support functions
 	private function databaseMediaRecord($mediaID, $inputArr){
 		$status = false;
-		$fieldArr = array('originalUrl' => 's', 'url' => 's', 'thumbnailUrl' => 's', 'mediamd5' => 's', 'pixelxdimension' => 'i', 'pixelydimension' => 'i', 'filesize' => 'i', 'filesizethumbnail' => 'i', 'filesizemedium' => 'i');
+		$fieldArr = $this->getFieldArr();
 		$inputFieldArr = array();
 		$paramArr = array();
 		$typeStr = '';
@@ -262,6 +295,11 @@ class MediaMigration {
 			}
 		}
 		return $status;
+	}
+
+	private function getFieldArr(){
+		$fieldArr = array('originalUrl' => 's', 'url' => 's', 'thumbnailUrl' => 's', 'mediaMD5' => 's', 'pixelXDimension' => 'i', 'pixelYDimension' => 'i', 'fileSize' => 'i', 'fileSizeThumbnail' => 'i', 'fileSizeMedium' => 'i');
+		return $fieldArr;
 	}
 
 	private function setLogFH(){
@@ -308,13 +346,18 @@ class MediaMigration {
 	public function setCollid($id){
 		if(is_numeric($id)){
 			$this->collid = $id;
-			$sql = 'SELECT collectionname, CONCAT_WS("_",institutioncode,collectioncode) as instcode FROM omcollections WHERE collid = '.$id;
-			$rs = $this->conn->query($sql);
-			while($r = $rs->fetch_object()){
-				$this->collMetaArr['name']= $r->collectionname;
-				$this->collMetaArr['code']= $r->instcode;
+			$sql = 'SELECT collectionname, CONCAT_WS("_",institutioncode,collectioncode) as instcode FROM omcollections WHERE collid = ?';
+			if($stmt = $this->conn->prepare($sql)){
+				$stmt->bind_param('i', $id);
+				$stmt->execute();
+				$rs = $stmt->get_result();
+				while($r = $rs->fetch_object()){
+					$this->collMetaArr['name']= $r->collectionname;
+					$this->collMetaArr['code']= $r->instcode;
+				}
+				$rs->free();
+				$stmt->close();
 			}
-			$rs->free();
 		}
 	}
 

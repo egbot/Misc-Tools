@@ -7,12 +7,13 @@ ini_set('display_errors', '1');
 include_once('MediaMigration.php');
 
 
-$dataSourceFile = '';		//test_migration.csv
+$dataSourceFile = '';
 $transferThumbnail = 1;
 $transferWeb = 1;
 $transferLarge = 1;
 $deleteSource = 1;
-$sourcePathPrefix = '';		// /Temp/media/source/
+$urlMatchTerm = '';
+$sourcePathPrefix = '';
 $targetPathPrefix = '';
 $urlPrefix = '';
 
@@ -23,8 +24,8 @@ if($dataSourceFile){
 	$migrationManager->setTransferThumbnail($transferThumbnail);
 	$migrationManager->setTransferWeb($transferWeb);
 	$migrationManager->setTransferLarge($transferLarge);
-	$migrationManager->setUrlMatchTerm($urlMatchTerm);
 	$migrationManager->setDeleteSource($deleteSource);
+	$migrationManager->setUrlMatchTerm($urlMatchTerm);
 	$migrationManager->setSourcePathPrefix($sourcePathPrefix);
 	$migrationManager->setTargetPathPrefix($targetPathPrefix);
 	$migrationManager->setUrlPrefix($urlPrefix);
