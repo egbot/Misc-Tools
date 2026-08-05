@@ -68,7 +68,9 @@ class MediaMigration {
 						}
 						$sqlBase .= $delimiter . 'm.' . $fieldName . ' ' . $condition . ' ? ';
 						$paramArr[] = $value;
-						$typeStr .= $fieldArr[$fieldName];
+						if(!empty($fieldArr[$fieldName])) $typeStr .= $fieldArr[$fieldName];
+						elseif($fieldName == 'occid') $typeStr .= 'i';
+						else $typeStr .= 's';
 					}
 					$delimiter = 'AND ';
 				}
