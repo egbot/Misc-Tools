@@ -30,21 +30,20 @@ class MediaMigration {
 		}
 	}
 
-	public function migrateMedia($mediaIdStart = 0, $limit = 1000){
+	public function migrateMediaViaDatabase($mediaIdStart = 0, $limit = 1000){
 		set_time_limit(1200);
-		$this->conn = MySQLiConnectionFactory::getCon('write');
-		$this->setVerboseMode(1);
-		$this->outputStr('Starting media file transfer (' . date('Y-m-d H:i:s') . ')');
-		if(!$this->urlMatchTerm){
-			$this->outputStr('FATAL ERROR: URL matching term has not been set');
-			exit;
+		if(!$this->conn){
+			$this->setDatabaseConnection();
 		}
 		if(!$this->conditionArr){
 			$this->outputStr('FATAL ERROR: query terms have not been defined');
 			exit;
 		}
-		$this->outputStr('Querying database media table based on search term: ' . $this->getConditionStr());
+		$this->verifyInputVariables();
 
+		$this->setLogFH();
+		$this->outputStr('Starting media file transfer (' . date('Y-m-d H:i:s') . ')');
+		$this->outputStr('Querying database media table based on search term: ' . $this->getConditionStr());
 		$paramArr = array();
 		$typeStr = '';
 		$sqlBase = 'FROM media m ';
@@ -55,13 +54,19 @@ class MediaMigration {
 		$fieldArr = $this->getFieldArr();
 		$delimiter = '';
 		foreach($this->conditionArr as $fieldName => $conditionArr){
-			if(array_key_exists($fieldName, $fieldArr)){
+			if(array_key_exists($fieldName, $fieldArr) || $fieldName == 'occid'){
 				foreach($conditionArr as $condition => $value){
 					if($condition == 'ISNULL'){
-						$sqlBase .= $delimiter . $fieldName . ' IS NULL ';
+						$sqlBase .= $delimiter . 'm.' . $fieldName . ' IS NULL ';
+					}
+					elseif($condition == 'NOTNULL'){
+						$sqlBase .= $delimiter . 'm.' . $fieldName . ' IS NOT NULL ';
 					}
 					else{
-						$sqlBase .= $delimiter . $fieldName . ' = ? ';
+						if($condition != 'LIKE'){
+							$condition = '=';
+						}
+						$sqlBase .= $delimiter . 'm.' . $fieldName . ' ' . $condition . ' ? ';
 						$paramArr[] = $value;
 						$typeStr .= $fieldArr[$fieldName];
 					}
@@ -70,12 +75,12 @@ class MediaMigration {
 			}
 		}
 		if($this->collid){
-			$sqlBase .= $delimiter . 'AND (o.collid = ?)';
+			$sqlBase .= $delimiter . '(o.collid = ?)';
 			$paramArr[] = $this->collid;
 			$typeStr .= 'i';
 		}
 		if($mediaIdStart){
-			$sqlBase .= $delimiter . '(mediaID > ?) ';
+			$sqlBase .= $delimiter . '(m.mediaID > ?) ';
 			$paramArr[] = $mediaIdStart;
 			$typeStr .= 'i';
 		}
@@ -90,10 +95,10 @@ class MediaMigration {
 			$cntStmt->fetch();
 			$cntStmt->close();
 		}
-		$this->outputStr('Target count: ' . $targetCnt, 1);
+		$this->outputStr('Target count: ' . $targetCnt);
 
 		$cnt = 0;
-		$sql = 'SELECT m.mediaID, m.occid, m.' . implode(', m.', $fieldArr) . ' ' . $sqlBase;
+		$sql = 'SELECT m.mediaID, m.occid, m.' . implode(', m.', array_keys($fieldArr)) . ' ' . $sqlBase;
 		if($limit) $sql .= 'LIMIT ' . $limit;
 		if($stmt = $this->conn->prepare($sql)){
 			$stmt->bind_param($typeStr, ...$paramArr);
@@ -103,6 +108,10 @@ class MediaMigration {
 				if($dataArr = $this->processMediaRecord($rowArr)){
 					if($this->databaseMediaRecord($rowArr['mediaID'], $dataArr)){
 						$cnt++;
+						if($cnt%1000 === 0){
+							$this->outputStr($cnt . ' records processed (' . date('Y-m-d H:i:s') . ')', 1);
+						}
+						/*
 						$recordID = $rowArr['occid'];
 						$link = $GLOBALS['CLIENT_ROOT'] . '/collections/individual/index.php?occid=' . $rowArr['occid'];
 						if(!$rowArr['occid']){
@@ -110,6 +119,7 @@ class MediaMigration {
 							$recordID = $rowArr['mediaID'];
 						}
 						$this->outputStr($cnt.': Processing: <a href="' . $link . '" target="_blank">#' . $recordID . '</a>');
+						*/
 					}
 				}
 
@@ -118,7 +128,7 @@ class MediaMigration {
 			$rs->free();
 			$stmt->close();
 		}
-		$this->outputStr('Done transferring ' . $cnt . ' media files (' . date('Y-m-d H:i:s') . ')');
+		$this->outputStr('Done! Processed ' . $cnt . ' media files (' . date('Y-m-d H:i:s') . ')');
 		/*
 		 * ALTER TABLE `media`
 		 *   ADD COLUMN `fileSize` INT NULL AFTER `pixelXDimension`,
@@ -127,11 +137,51 @@ class MediaMigration {
 		 */
 	}
 
+	private function databaseMediaRecord($mediaID, $inputArr){
+		$status = false;
+		$fieldArr = $this->getFieldArr();
+		$inputFieldArr = array();
+		$paramArr = array();
+		$typeStr = '';
+		foreach($inputArr as $field => $value){
+			if(isset($fieldArr[$field])){
+				$inputFieldArr[] = $field;
+				$paramArr[] = $value;
+				$typeStr .= $fieldArr[$field];
+			}
+		}
+		if($inputFieldArr){
+			$sql = 'UPDATE media SET ' . implode(' = ?, ', $inputFieldArr) . ' = ? WHERE mediaID = ?';
+			$paramArr[] = $mediaID;
+			$typeStr .= 'i';
+			try{
+				if($stmt = $this->conn->prepare($sql)){
+					$stmt->bind_param($typeStr, ...$paramArr);
+					$stmt->execute();
+					if($stmt->error){
+						$this->outputStr('ERROR saving new paths (mediaID = ' . $mediaID . '): ' . $stmt->error, 1);
+					}
+					elseif(!$stmt->affected_rows){
+						$this->outputStr('Nothing changed (mediaID = ' . $mediaID . ')', 1);
+					}
+					else $status = true;
+					$stmt->close();
+				}
+			}
+			catch(Exception $e){
+				$this->outputStr('FATAL ERROR writing to database: ' . $e->getMessage());
+				exit;
+			}
+		}
+		return $status;
+	}
+
 	public function migrateMediaViaDataFile($dataFile){
 		if(!file_exists($dataFile)){
 			$this->outputStr('FATAL ERROR: source data file has not been provided');
 			exit;
 		}
+		$this->verifyInputVariables();
 		$this->setLogFH();
 		$this->outputStr('Starting media file transfer via input file (' . date('Y-m-d H:i:s') . ')');
 		if (($inputFH = fopen($dataFile, 'r')) !== FALSE) {
@@ -195,24 +245,6 @@ class MediaMigration {
 	}
 
 	private function processMediaRecord($recordArr){
-		if($this->transferLarge || $this->transferWeb || $this->transferThumbnail){
-			if(!$this->sourcePathPrefix){
-				$this->outputStr('FATAL ERROR: source path has not been provided');
-				exit;
-			}
-			if(!is_writable($this->sourcePathPrefix)){
-				$this->outputStr('FATAL ERROR: source path is not writable (source: ' . $this->sourcePathPrefix . ')');
-				exit;
-			}
-			if(!$this->targetPathPrefix){
-				$this->outputStr('FATAL ERROR: target path has not been provided');
-				exit;
-			}
-			if(!is_writable($this->targetPathPrefix)){
-				$this->outputStr('FATAL ERROR: target path is not writable (target: ' . $this->targetPathPrefix . ')');
-				exit;
-			}
-		}
 		$dataReturnArr = array();
 		$urlFieldArr = array('originalUrl', 'url', 'thumbnailUrl');
 		foreach($urlFieldArr as $urlField){
@@ -286,7 +318,8 @@ class MediaMigration {
 
 				if($urlField == 'originalUrl'){
 					if(!$recordArr['mediaMD5']){
-						$dataReturnArr['mediaMD5'] = md5_file($activePath);
+						@$hash = md5_file($activePath);
+						if($hash) $dataReturnArr['mediaMD5'] = $hash;
 					}
 					if(!$recordArr['pixelXDimension']){
 						$dim = getimagesize($activePath);
@@ -296,55 +329,49 @@ class MediaMigration {
 						}
 					}
 					if(!$recordArr['fileSize']){
-						$dataReturnArr['fileSize'] = round(filesize($activePath) / 1024);
+						$size = filesize($activePath);
+						if($size) $dataReturnArr['fileSize'] = round($size / 1024);
 					}
 				}
 				elseif($urlField == 'url'){
-					$dataReturnArr['fileSizeMedium'] = round(filesize($activePath) / 1024);
+					$size = filesize($activePath);
+					if($size) $dataReturnArr['fileSizeMedium'] = round($size / 1024);
 				}
 				elseif($urlField == 'thumbnailUrl'){
-					$dataReturnArr['fileSizeThumbnail'] = round(filesize($activePath) / 1024);
+					$size = filesize($activePath);
+					if($size) $dataReturnArr['fileSizeThumbnail'] = round($size / 1024);
 				}
 			}
 		}
 		return $dataReturnArr;
 	}
 
-	//Support functions
-	private function databaseMediaRecord($mediaID, $inputArr){
-		$status = false;
-		$fieldArr = $this->getFieldArr();
-		$inputFieldArr = array();
-		$paramArr = array();
-		$typeStr = '';
-		foreach($inputArr as $field => $value){
-			if(isset($fieldArr[$field])){
-				$inputFieldArr[] = $field;
-				$paramArr[] = $value;
-				$typeStr .= $fieldArr[$field];
+	//Misc and shared support functions
+	private function verifyInputVariables(){
+		if(!$this->urlMatchTerm){
+			$this->outputStr('FATAL ERROR: source path has not been provided');
+			exit;
+		}
+		if(!$this->sourcePathPrefix){
+			$this->outputStr('FATAL ERROR: source path has not been provided');
+			exit;
+		}
+		if($this->transferLarge || $this->transferWeb || $this->transferThumbnail){
+			if(!is_writable($this->sourcePathPrefix)){
+				$this->outputStr('FATAL ERROR: source path is not writable (source: ' . $this->sourcePathPrefix . ')');
+				exit;
+			}
+			if(!$this->targetPathPrefix){
+				$this->outputStr('FATAL ERROR: target path has not been provided');
+				exit;
+			}
+			if(!is_writable($this->targetPathPrefix)){
+				$this->outputStr('FATAL ERROR: target path is not writable (target: ' . $this->targetPathPrefix . ')');
+				exit;
 			}
 		}
-		if($inputFieldArr){
-			$sql = 'UPDATE media SET ' . implode(' = ?, ', $inputFieldArr) . ' = ? WHERE mediaID = ?';
-			$paramArr[] = $mediaID;
-			$typeStr .= 'i';
-			if($stmt = $this->conn->prepare($sql)){
-				$stmt->bind_param($typeStr, ...$paramArr);
-				$stmt->execute();
-				if($stmt->error){
-					$this->outputStr('ERROR saving new paths (mediaID = ' . $mediaID . '): ' . $stmt->error, 1);
-				}
-				elseif(!$stmt->affected_rows){
-					$this->outputStr('Nothing changed (mediaID = ' . $mediaID . ')', 1);
-				}
-				else $status = true;
-				$stmt->close();
-			}
-		}
-		return $status;
 	}
 
-	//Misc support functions
 	public function getCollectionMeta(){
 		$retArr = array();
 		$sql = 'SELECT collid, collectionname, CONCAT_WS(":",institutioncode,collectioncode) as instcode FROM omcollections ORDER BY collectionname';
@@ -379,6 +406,38 @@ class MediaMigration {
 		}
 	}
 
+	public function setDatabaseConnection($userName = null, $pwd = null, $database = null, $host = 'localhost', $port = '3306'){
+		if($userName){
+			try{
+				$this->conn = new mysqli($host, $userName, $pwd, $database, $port);
+				if(!$this->conn){
+					$this->outputStr('FATAL ERROR: unable to establish database connection using input variables');
+					exit;
+				}
+				if(!$this->conn->set_charset('utf8')){
+					$this->outputStr('Error loading character set utf8: ' . $this->conn->error);
+				}
+			}
+			catch(Exception $e){
+				$this->outputStr('FATAL ERROR setting up database connection: ' . $e->getMessage());
+				exit;
+			}
+		}
+		elseif(class_exists('MySQLiConnectionFactory')){
+			$this->conn = MySQLiConnectionFactory::getCon('write');
+			if(!$this->conn){
+				$this->outputStr('FATAL ERROR: unable to establish database connection via MySQLiConnectionFactory');
+				exit;
+			}
+		}
+		else{
+			if(!$this->conn){
+				$this->outputStr('FATAL ERROR: unable to establish database connection due to missing connection variables');
+				exit;
+			}
+		}
+	}
+
 	//Setters and getters
 	private function getFieldArr(){
 		$fieldArr = array('originalUrl' => 's', 'url' => 's', 'thumbnailUrl' => 's', 'mediaMD5' => 's', 'pixelXDimension' => 'i', 'pixelYDimension' => 'i', 'fileSize' => 'i', 'fileSizeThumbnail' => 'i', 'fileSizeMedium' => 'i');
@@ -390,19 +449,29 @@ class MediaMigration {
 		$this->logFH = fopen($logPath, 'x');
 	}
 
+	public function setConditionStr($inputArr){
+		if(is_array($inputArr[0])){
+			foreach($inputArr as $condArr){
+				$this->appendQueryTerm($condArr[0], $condArr[1], $condArr[2]);
+			}
+		}
+		else{
+			$this->appendQueryTerm($inputArr[0], $inputArr[1], $inputArr[2]);
+		}
+	}
+
 	public function appendQueryTerm($fieldName, $condition, $value){
 		$this->conditionArr[$fieldName][$condition] = $value;
 	}
 
 	private function getConditionStr(){
 		$retStr = '';
-		$pairs = array_map(
-				fn($k, $v) => "$k=$v",
-				array_keys($this->conditionArr),
-				$this->conditionArr
-				);
-		$retStr = implode(', ', $pairs);
-		return $retStr;
+		foreach($this->conditionArr as $fieldName => $condArr){
+			foreach($condArr as $condition => $value){
+				$retStr .= $fieldName . ' ' .$condition . ($value ? ' ' . $value : '') . ', ';
+			}
+		}
+		return trim($retStr , ' ,');
 	}
 
 	public function setCollid($id){

@@ -88,7 +88,7 @@ if($IS_ADMIN) $isEditor = true;
 								$migrationManager->setSourcePathPrefix($sourcePathPrefix);
 								$migrationManager->setTargetPathPrefix($targetPathPrefix);
 								$migrationManager->setUrlPrefix($urlPrefix);
-								$mediaIdStart = $migrationManager->migrateMedia($mediaIdStart, $limit);
+								//$mediaIdStart = $migrationManager->migrateMediaViaDatabase($mediaIdStart, $limit);
 							}
 							?>
 						</ul>
